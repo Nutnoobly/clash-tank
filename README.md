@@ -30,6 +30,8 @@ AI is integrated into Clash Tank across two distinct layers:
 | Date | Agent / Model | Scope of Work | Files Created / Modified |
 | :--- | :--- | :--- | :--- |
 | **2026-10-12** | Antigravity Agent (Gemini 3.8 Flash High) | Executed `/grill-me` architectural review. Defined end-to-end design specifications, preemptive state machine rules, L298N skid-steer pinouts, Thai/English prompt specifications, environment templates, and repository governance rules. | [`AGENT.md`](AGENT.md), [`README.md`](README.md), [`.env.example`](.env.example), [`requirements.txt`](requirements.txt), [`clash-tank/config.h.example`](clash-tank/config.h.example), [`.gitignore`](.gitignore) |
+| **2026-10-19** | Hermes Agent / gpt-6.1-sol | Completed only environment-variable assignments; removed agent-created receiver tests after scope clarification. | `server.py`, removed `test_server.py`, `README.md` |
+| **2026-10-20** | Hermes Agent (Gemini 4 Argon Medium) | Updated `SYSTEM_PROMPT` to add `SPIN` and strict anti-hallucination rules ignoring unknown commands (`{"commands": []}`). | `systemprompt.py`, `README.md` |
 
 ---
 
