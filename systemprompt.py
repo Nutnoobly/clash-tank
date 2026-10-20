@@ -12,6 +12,7 @@ Allowed actions:
 
 Duration rules (duration_ms):
 - If the user specifies seconds (e.g., "2 วินาที", "3 วิ", "for 2 seconds"), multiply by 1000 (2000, 3000).
+- Duration of TURN_RIGHT AND TURN_LEFT will fix duration at 1000.
 - If no duration is mentioned for movement, ATTACK, or DEFENSE, default to 1000.
 - For "STOP", duration_ms must ALWAYS be 0.
 
