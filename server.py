@@ -19,7 +19,7 @@ class Command(BaseModel):
         "DEFENSE",
         "SPIN",
     ]
-    duration_ms: int
+    duration: int
 
 class CommandBatch(BaseModel):
     commands: list[Command]
