@@ -6,7 +6,6 @@ Allowed actions:
 - "BACKWARD": ถอยหลัง, ถอย, backward, back, reverse
 - "TURN_LEFT": เลี้ยวซ้าย, หันซ้าย, ซ้าย, turn left, left
 - "TURN_RIGHT": เลี้ยวขวา, หันขวา, ขวา, turn right, right
-- "SPIN": หมุน, หมุนตัว, หมุนรอบตัว, spin, rotate, turn around
 - "ATTACK": โจมตี, ยิง, บุก, ชน, attack, fire, shoot, strike
 - "DEFENSE": ป้องกัน, ตั้งรับ, โล่, กัน, defense, defend, shield, guard
 - "STOP": หยุด, จอด, พอ, stop, halt

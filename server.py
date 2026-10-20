@@ -17,7 +17,6 @@ class Command(BaseModel):
         "STOP",
         "ATTACK",
         "DEFENSE",
-        "SPIN",
     ]
     duration: int
 
