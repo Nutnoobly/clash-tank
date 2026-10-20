@@ -39,6 +39,8 @@ AI is integrated into Clash Tank across two distinct layers:
 | **2026-10-20** | Codex / GPT-6 | Ignored local product/design documents and the docs directory at the user's request. | `.gitignore`, `README.md` |
 | **2026-10-20** | Codex / GPT-6 | Implemented the approved mobile controller in React/Vite with local settings/history, Thai/English speech review, MQTT over WSS, text fallback, stop submission, and transport/speech/storage tests. | `controller.html`, `index.html`, `package.json`, `package-lock.json`, `vite.config.js`, `src/`, `tests/`, `.gitignore`, `README.md`; local ignored `PRODUCT.md`, `DESIGN.md` |
 | **2026-10-20** | Codex / GPT-6 | Reviewed duplicate font-detector findings and preserved the approved Figma wordmark with a narrow Inter font exception. | `.impeccable/config.json`, `README.md` |
+| **2026-10-20** | Codex / GPT-6 | Diagnosed reported broker connectivity with connection-only MQTT/WSS and browser checks; the public HiveMQ endpoint connected successfully without publishing commands. Removed the temporary diagnostic script; deployed-site reproduction still requires its URL/error. | `README.md` |
+| **2026-10-20** | Codex / GPT-6 | Set the requested HiveMQ WSS endpoint as the default, including migration of saved empty URLs while preserving custom brokers. | `src/lib/storage.js`, `tests/controller.test.js`, `README.md` |
 
 ---
 
@@ -131,7 +133,7 @@ npm run dev
 
 Open `http://localhost:5173/` (or `/controller.html`). The Vite server also listens on the local network. For phone microphone access, serve through **HTTPS with a trusted certificate**; the computer's LAN HTTP URL does not receive the phone's localhost exception. Try Safari on iPhone or Chrome on Android and grant microphone permission. Browser speech services may require internet access.
 
-1. Open Settings and enter the broker's actual **WSS URL**, including its port and path. `wss://<cluster>:8884/mqtt` is a HiveMQ Cloud example, not a preconfigured connection.
+1. The default **WSS URL** is `wss://broker.hivemq.com:8884/mqtt` (HiveMQ public broker). Open Settings to change it if the team uses another broker. Previously saved empty URLs adopt this default; custom broker URLs are preserved.
 2. Enter username/password only if the broker requires authentication. Set **Voice topic** to the backend's actual `TOPIC_VOICE`; the initial value matches `.env.example`.
 3. Select **บันทึกและเชื่อมต่อ**. Connection is explicit; reloading never automatically sends or reconnects commands.
 4. Select Thai or English, tap the microphone, and speak. Review/edit the final transcript, then select **ส่งคำสั่ง**. Typed commands also pass through review. Unsupported speech and denied permissions leave text entry available.

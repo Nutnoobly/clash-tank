@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createTransport } from '../src/lib/transport.js';
 import { createVoicePayload, validateSettings, mqttErrorMessage } from '../src/lib/commands.js';
-import { readStored, saveSettings, sanitizeHistory, writeStored, STORAGE_KEYS } from '../src/lib/storage.js';
+import { readStored, saveSettings, sanitizeSettings, sanitizeHistory, writeStored, STORAGE_KEYS } from '../src/lib/storage.js';
 import { createSpeechSession } from '../src/lib/speech.js';
 
 const config = { brokerUrl: 'wss://example.invalid:8884/mqtt', username: '', password: '', voiceTopic: 'test/voice' };
@@ -105,6 +105,14 @@ test('storage persists settings without ever serializing the password', () => {
   assert.equal(saved[0], STORAGE_KEYS.settings);
   assert.equal(saved[1].includes('not-for-storage'), false);
   assert.equal('password' in JSON.parse(saved[1]), false);
+});
+
+test('legacy empty broker settings adopt the default without replacing custom brokers', () => {
+  const publicBroker = 'wss://broker.hivemq.com:8884/mqtt';
+  assert.equal(sanitizeSettings({}).brokerUrl, publicBroker);
+  assert.equal(sanitizeSettings({ brokerUrl: '' }).brokerUrl, publicBroker);
+  assert.equal(sanitizeSettings({ brokerUrl: '  ' }).brokerUrl, publicBroker);
+  assert.equal(sanitizeSettings(config).brokerUrl, config.brokerUrl);
 });
 
 test('corrupt, unavailable, and full storage does not break the app', () => {

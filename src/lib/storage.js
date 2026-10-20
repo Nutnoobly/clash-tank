@@ -1,5 +1,5 @@
 export const DEFAULT_SETTINGS = Object.freeze({
-  brokerUrl: '',
+  brokerUrl: 'wss://broker.hivemq.com:8884/mqtt',
   username: '',
   voiceTopic: 'n8q4x2m7v9p3k6t1r5z0/voice_in',
 });
@@ -31,9 +31,11 @@ export function writeStored(key, value, storage = browserStorage()) {
 
 export function sanitizeSettings(value) {
   const input = value && typeof value === 'object' ? value : {};
-  return Object.fromEntries(Object.entries(DEFAULT_SETTINGS).map(([key, fallback]) => [
+  const settings = Object.fromEntries(Object.entries(DEFAULT_SETTINGS).map(([key, fallback]) => [
     key, typeof input[key] === 'string' ? input[key].slice(0, 2048) : fallback,
   ]));
+  if (!settings.brokerUrl.trim()) settings.brokerUrl = DEFAULT_SETTINGS.brokerUrl;
+  return settings;
 }
 
 export function loadSettings() {
