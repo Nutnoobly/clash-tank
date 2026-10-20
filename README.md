@@ -10,9 +10,9 @@ Clash Tank is an IoT voice-controlled robotic tank powered by an ESP32 microcont
 
 AI is integrated into Clash Tank across two distinct layers:
 
-1. **Edge NLP / LLM Reasoning (`server.py`)**:
+1. **Edge NLP / LLM Reasoning (`server.py` & `systemprompt.py`)**:
    - **Model**: Local Ollama running `qwen2.5:3b`.
-   - **Role**: Ingests natural spoken phrases in Thai and English (e.g., *"เดินหน้า 2 วินาทีแล้วเลี้ยวซ้าย"*, *"Drive forward 2 seconds then turn left"*), extracts movement intent, infers duration, and generates strictly typed JSON command batches conforming to Pydantic schema validation.
+   - **Role**: Ingests natural spoken phrases in Thai and English (e.g., *"เดินหน้า 2 วินาทีแล้วเลี้ยวซ้าย"*, *"Drive forward 2 seconds then turn left"*), maps valid intents (`FORWARD`, `BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `SPIN`, `ATTACK`, `DEFENSE`, `STOP`), ignores unknown words (`{"commands": []}`) to prevent hallucination, and publishes Pydantic-structured JSON command batches to `car/commands`.
 2. **Speech Recognition (`controller.html`)**:
    - **API**: Browser Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`).
    - **Role**: On-device AI/neural speech-to-text engine transcribing continuous spoken Thai and English into text packets sent via MQTT.
@@ -32,6 +32,7 @@ AI is integrated into Clash Tank across two distinct layers:
 | **2026-10-12** | Antigravity Agent (Gemini 3.8 Flash High) | Executed `/grill-me` architectural review. Defined end-to-end design specifications, preemptive state machine rules, L298N skid-steer pinouts, Thai/English prompt specifications, environment templates, and repository governance rules. | [`AGENT.md`](AGENT.md), [`README.md`](README.md), [`.env.example`](.env.example), [`requirements.txt`](requirements.txt), [`clash-tank/config.h.example`](clash-tank/config.h.example), [`.gitignore`](.gitignore) |
 | **2026-10-19** | Hermes Agent / gpt-6.1-sol | Completed only environment-variable assignments; removed agent-created receiver tests after scope clarification. | `server.py`, removed `test_server.py`, `README.md` |
 | **2026-10-20** | Hermes Agent (Gemini 4 Argon Medium) | Updated `SYSTEM_PROMPT` to add `SPIN` and strict anti-hallucination rules ignoring unknown commands (`{"commands": []}`). | `systemprompt.py`, `README.md` |
+| **2026-10-20** | Hermes Agent (Gemini 4 Argon Medium) | Updated architecture and setup documentation to reflect `server.py` and `systemprompt.py` implementation (`SPIN`, `ATTACK`, `DEFENSE`, anti-hallucination empty-batch filtering, and current non-clamped duration rules). | `AGENT.md`, `README.md` |
 
 ---
 
@@ -44,6 +45,7 @@ clash-tank/
 ├── requirements.txt           # Python dependencies for server.py
 ├── controller.html            # Web Speech API + mqtt.js (WSS :8884) mobile interface
 ├── server.py                  # Python MQTT bridge with Ollama structured outputs
+├── systemprompt.py            # Bilingual Thai/English system prompt & anti-hallucination rules
 ├── README.md                  # Quick-start setup and documentation
 ├── AGENT.md                   # Full system architecture specification
 │

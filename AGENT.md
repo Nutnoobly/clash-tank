@@ -73,7 +73,7 @@ sequenceDiagram
     Broker->>Py: DELIVER car/voice (TCP port 8883)
     Py->>LLM: Prompt with schema (Thai & English parser)
     LLM-->>Py: Structured JSON: {"commands": [{"action": "FORWARD", "duration_ms": 2000}, ...]}
-    Py->>Py: Validate & clamp duration (100ms - 5000ms)
+    Py->>Py: Check non-empty commands (skip publish if empty)
     Py->>Broker: PUBLISH car/commands (TCP port 8883)<br/>Payload: {"commands": [...]}
     Broker->>MCU: DELIVER car/commands (TCP port 8883)
     MCU->>MCU: Abort active routine & load preemptive queue
@@ -98,6 +98,7 @@ clash-tank/
 ├── requirements.txt           # Python dependencies for server.py
 ├── controller.html            # Mobile-friendly web controller with speech recognition and MQTT over WSS
 ├── server.py                  # Python daemon: bridges car/voice to Ollama and publishes car/commands
+├── systemprompt.py            # System prompt defining bilingual actions, durations, and anti-hallucination rules
 │
 └── clash-tank/
     ├── clash-tank.ino         # ESP32 firmware: WiFiClientSecure, PubSubClient, motor state machine
@@ -109,7 +110,8 @@ clash-tank/
 | File | Primary Role | Key Technologies / Libraries |
 | :--- | :--- | :--- |
 | `controller.html` | Client interface hosted over HTTPS/localhost. Captures speech in Thai/English, displays real-time connection status, and publishes JSON to `car/voice`. | Web Speech API (`webkitSpeechRecognition`), `mqtt.js` (v4/v5 via CDN), Tailwind CSS / Vanilla JS. |
-| `server.py` | Headless edge translation server. Subscribes to `car/voice`, queries local Ollama instance (`qwen2.5:3b`) using structured JSON constraints, validates durations, and dispatches to `car/commands`. | Python 3.10+, `paho-mqtt` (v2), `ollama` (Python SDK) or `requests`, `pydantic` (v2), `python-dotenv`. |
+| `server.py` | Headless edge translation server. Subscribes to `car/voice`, validates payload/confidence, queries local Ollama instance (`qwen2.5:3b`) using Pydantic structured JSON constraints, and dispatches non-empty command batches to `car/commands`. | Python 3.10+, `paho-mqtt` (v2), `ollama` (Python SDK), `pydantic` (v2), `python-dotenv`. |
+| `systemprompt.py` | Holds `SYSTEM_PROMPT` for `server.py` with Thai/English action mappings (`FORWARD`, `BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `SPIN`, `ATTACK`, `DEFENSE`, `STOP`), duration defaults, and strict anti-hallucination rules (`{"commands": []}`). | Python module. |
 | `clash-tank/clash-tank.ino` | Microcontroller firmware. Connects to HiveMQ Cloud via TLS, sets 1024-byte MQTT buffer, decodes JSON via ArduinoJson, runs a preemptive non-blocking command queue, and drives L298N pins. | ESP32 Arduino Core, `WiFiClientSecure`, `PubSubClient`, `ArduinoJson` (v6/v7), ESP32 LEDC PWM. |
 | `requirements.txt` | Defines pinned dependencies for `server.py`. | `paho-mqtt>=2.0.0`, `ollama>=0.3.0`, `pydantic>=2.0.0`, `python-dotenv>=1.0.0`. |
 | `config.h.example` | Header template containing WiFi credentials, HiveMQ host/port/credentials, and ESP32 GPIO pin definitions. Copied to gitignored `config.h` before flashing. | C++ header format. |
@@ -175,16 +177,19 @@ clash-tank/
 ```
 
 #### Field Constraints & Enums
-- `commands` *(array of objects, required)*: Ordered list of movements. Maximum 5 actions per batch.
+- `commands` *(array of objects, required)*: Ordered list of actions. Empty list (`[]`) returned by the LLM when no valid command is recognized (skipped and not published to `car/commands`).
 - `action` *(string, enum, required)*: Must strictly be one of:
   - `FORWARD`: Both left and right tracks drive forward.
   - `BACKWARD`: Both left and right tracks drive backward.
   - `TURN_LEFT`: Skid-steer pivot turn (Left track reverse, Right track forward).
   - `TURN_RIGHT`: Skid-steer pivot turn (Left track forward, Right track reverse).
+  - `SPIN`: Full spin/rotation action.
+  - `ATTACK`: Trigger tank attack mechanism/routine.
+  - `DEFENSE`: Trigger tank defense/shield mechanism/routine.
   - `STOP`: Both tracks immediately halted.
 - `duration_ms` *(integer, required)*: Execution time in milliseconds.
-  - Range for directional actions (`FORWARD`, `BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`): Clamped between `100` and `5000` ms.
-  - For `STOP`: Typically `0` (immediate permanent stop until next command).
+  - Default when unspecified for `FORWARD`, `BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `SPIN`, `ATTACK`, `DEFENSE`: `1000` ms (no duration clamping currently applied).
+  - For `STOP`: Always `0` (immediate stop).
 
 ---
 
@@ -206,24 +211,26 @@ clash-tank/
 
 ---
 
-### 4.2 Edge Translation Server (`server.py`)
+### 4.2 Edge Translation Server (`server.py` & `systemprompt.py`)
 
-1. **Ollama Integration & Model**:
-   - Model: `qwen2.5:3b`.
-   - Endpoint: `http://localhost:11434/api/generate` or official Python `ollama` client.
-   - Output enforcement: Must use Ollama's structured outputs (`format: CommandBatch.model_json_schema()`) to guarantee 100% syntactically valid JSON matching the schema.
-2. **Bilingual Prompt Engineering (Thai & English)**:
-   - System instructions explicitly map both Thai and English movement vocabularies:
-     - **Forward**: "เดินหน้า", "ไปข้างหน้า", "ตรงไป", "forward", "straight", "ahead", "go".
-     - **Backward**: "ถอยหลัง", "ถอย", "backward", "back", "reverse".
-     - **Turn Left**: "เลี้ยวซ้าย", "ซ้าย", "หมุนซ้าย", "left", "turn left", "spin left".
-     - **Turn Right**: "เลี้ยวขวา", "ขวา", "หมุนขวา", "right", "turn right", "spin right".
-     - **Stop**: "หยุด", "จอด", "พอ", "stop", "halt", "freeze", "brake".
-   - Handles default duration inference: If no duration is explicitly spoken (e.g., "เลี้ยวซ้าย" / "turn left"), default to `1000` ms. If duration is explicitly specified (e.g., "3 วินาที" / "3 seconds"), parse to `3000` ms.
-3. **Safety Clamping in Python**:
-   - Uses Pydantic validators to clamp any `duration_ms` above `5000` ms down to `5000` ms.
-   - Any duration below `100` ms (except for `STOP`) is raised to `100` ms.
-   - Unrecognized phrases or noise produce `{"commands": [{"action": "STOP", "duration_ms": 0}]}`.
+1. **Payload Validation (`validate_payload`)**:
+   - Validates incoming `car/voice` JSON, requires `confidence >= 0.5` (defaults to `1.0` if omitted), and strips `text` (rejecting empty strings).
+   - Computes `age_ms = int(time.time() * 1000) - timestamp` (5000 ms timeout check is currently commented out in `server.py` for static-timestamp testing and should be uncommented for live operation).
+2. **Ollama Integration & Model (`message_to_command`)**:
+   - Model: `qwen2.5:3b` via `ollama.Client(host=ollama_host).chat(...)`.
+   - Output enforcement: Uses `format=CommandBatch.model_json_schema()` to guarantee syntactically valid JSON matching `CommandBatch` (`FORWARD`, `BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `STOP`, `ATTACK`, `DEFENSE`, `SPIN`).
+3. **Bilingual Prompt Engineering & Anti-Hallucination (`systemprompt.py`)**:
+   - System instructions (`SYSTEM_PROMPT`) map Thai and English vocabularies:
+     - **FORWARD**: เดินหน้า, ไปข้างหน้า, ตรงไป, forward, go, ahead
+     - **BACKWARD**: ถอยหลัง, ถอย, backward, back, reverse
+     - **TURN_LEFT**: เลี้ยวซ้าย, หันซ้าย, ซ้าย, turn left, left
+     - **TURN_RIGHT**: เลี้ยวขวา, หันขวา, ขวา, turn right, right
+     - **SPIN**: หมุน, หมุนตัว, หมุนรอบตัว, spin, rotate, turn around
+     - **ATTACK**: โจมตี, ยิง, บุก, ชน, attack, fire, shoot, strike
+     - **DEFENSE**: ป้องกัน, ตั้งรับ, โล่, กัน, defense, defend, shield, guard
+     - **STOP**: หยุด, จอด, พอ, stop, halt
+   - Default duration inference: `1000` ms when unspecified for movement, `SPIN`, `ATTACK`, or `DEFENSE`; `0` ms for `STOP`; spoken seconds multiplied by `1000` (duration clamping is intentionally omitted for now).
+   - Strict anti-hallucination: Unrecognized/unknown words are ignored (`{"commands": []}` if no valid command is present), and `server.py` skips publishing to `car/commands` when `commands` is empty.
 
 ---
 
