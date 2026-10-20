@@ -14,3 +14,13 @@ __pycache__/
 .DS_Store
 Thumbs.db
 AGENT.md
+
+# Local product, design, and research notes
+/PRODUCT.md
+/DESIGN.md
+/docs/
+
+# Frontend dependencies and generated build
+/node_modules/
+/dist/
+*.local

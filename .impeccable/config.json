@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-20T07:06:03.381Z",
+        "reason": "User confirmed the Figma design before implementation; Inter Semi Bold is intentionally limited to the approved CLASH TANK wordmark, while interface text uses IBM Plex Sans Thai."
+      }
+    ]
+  }
+}

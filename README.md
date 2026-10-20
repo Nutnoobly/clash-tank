@@ -33,6 +33,12 @@ AI is integrated into Clash Tank across two distinct layers:
 | **2026-10-19** | Hermes Agent / gpt-6.1-sol | Completed only environment-variable assignments; removed agent-created receiver tests after scope clarification. | `server.py`, removed `test_server.py`, `README.md` |
 | **2026-10-20** | Hermes Agent (Gemini 4 Argon Medium) | Updated `SYSTEM_PROMPT` to add `SPIN` and strict anti-hallucination rules ignoring unknown commands (`{"commands": []}`). | `systemprompt.py`, `README.md` |
 | **2026-10-20** | Hermes Agent (Gemini 4 Argon Medium) | Updated architecture and setup documentation to reflect `server.py` and `systemprompt.py` implementation (`SPIN`, `ATTACK`, `DEFENSE`, anti-hallucination empty-batch filtering, and current non-clamped duration rules). | `AGENT.md`, `README.md` |
+| **2026-10-20** | Codex / GPT-6 | Created then removed the duplicate contributor guide at the user's request; retained the existing `AGENT.md`. | `AGENTS.md` (removed), `README.md` |
+| **2026-10-20** | Codex / GPT-6 | Researched mobile web speech-to-text feasibility, browser constraints, MQTT payload integration, and a device validation plan using primary sources. | `docs/mobile-speech-to-text.md`, `README.md` |
+| **2026-10-20** | Codex / GPT-6 | Designed editable black/orange portrait mobile controller screens and prototype flows in the supplied Figma file; documented confirmed product requirements and UI handoff. | `PRODUCT.md`, `DESIGN.md`, `README.md`; Figma file `clashTank` |
+| **2026-10-20** | Codex / GPT-6 | Ignored local product/design documents and the docs directory at the user's request. | `.gitignore`, `README.md` |
+| **2026-10-20** | Codex / GPT-6 | Implemented the approved mobile controller in React/Vite with local settings/history, Thai/English speech review, MQTT over WSS, text fallback, stop submission, and transport/speech/storage tests. | `controller.html`, `index.html`, `package.json`, `package-lock.json`, `vite.config.js`, `src/`, `tests/`, `.gitignore`, `README.md`; local ignored `PRODUCT.md`, `DESIGN.md` |
+| **2026-10-20** | Codex / GPT-6 | Reviewed duplicate font-detector findings and preserved the approved Figma wordmark with a narrow Inter font exception. | `.impeccable/config.json`, `README.md` |
 
 ---
 
@@ -43,7 +49,12 @@ clash-tank/
 │
 ├── .env.example               # Template for Python server environment variables
 ├── requirements.txt           # Python dependencies for server.py
-├── controller.html            # Web Speech API + mqtt.js (WSS :8884) mobile interface
+├── controller.html            # Alternate entry point for the React controller
+├── index.html                 # Default React controller entry point
+├── src/                       # Mobile UI, speech sessions, MQTT transport, local storage
+├── tests/                     # Controller logic tests using Node's built-in test runner
+├── package.json               # Frontend dependencies and npm scripts
+├── vite.config.js             # React/Vite build with both HTML entry points
 ├── server.py                  # Python MQTT bridge with Ollama structured outputs
 ├── systemprompt.py            # Bilingual Thai/English system prompt & anti-hallucination rules
 ├── README.md                  # Quick-start setup and documentation
@@ -111,10 +122,29 @@ clash-tank/
 
 ### 4. Mobile Web Controller (`controller.html`)
 
-1. Serve `controller.html` over HTTPS or `localhost` (browsers require a secure context for the Web Speech API):
-   ```bash
-   python -m http.server 8000
-   ```
-2. Open `http://localhost:8000/controller.html` on your browser or mobile device.
-3. Configure your HiveMQ Cloud credentials in the settings drawer.
-4. Tap the microphone button and issue commands in Thai or English (e.g., *"เดินหน้า 2 วินาที"* or *"Forward 2 seconds"*).
+Requires Node.js 22.12+.
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173/` (or `/controller.html`). The Vite server also listens on the local network. For phone microphone access, serve through **HTTPS with a trusted certificate**; the computer's LAN HTTP URL does not receive the phone's localhost exception. Try Safari on iPhone or Chrome on Android and grant microphone permission. Browser speech services may require internet access.
+
+1. Open Settings and enter the broker's actual **WSS URL**, including its port and path. `wss://<cluster>:8884/mqtt` is a HiveMQ Cloud example, not a preconfigured connection.
+2. Enter username/password only if the broker requires authentication. Set **Voice topic** to the backend's actual `TOPIC_VOICE`; the initial value matches `.env.example`.
+3. Select **บันทึกและเชื่อมต่อ**. Connection is explicit; reloading never automatically sends or reconnects commands.
+4. Select Thai or English, tap the microphone, and speak. Review/edit the final transcript, then select **ส่งคำสั่ง**. Typed commands also pass through review. Unsupported speech and denied permissions leave text entry available.
+5. Local storage remembers URL, username, topic, language, and the last three successfully submitted messages. Passwords stay in memory and must be re-entered after reload. Stored data is specific to the browser and website origin.
+
+The client sends `{ "text": "...", "timestamp": <epoch milliseconds>, "confidence": <optional score> }` to the configured voice topic with QoS 0 and `retain: false`. Only final speech enters review. Low positive confidence below 0.5 requires speaking again or editing the text; unavailable confidence is omitted. Edits discard the recognizer's old score. Offline messages are rejected rather than queued or replayed. **ส่งแล้ว** means the client submitted a message, not that the vehicle executed it; there is no vehicle feedback topic.
+
+**Stop behavior:** the persistent **หยุดรถ** button aborts listening and immediately submits the text `STOP` to the same voice topic without review. It still passes through the current Python/Ollama pipeline. It is not a direct motor emergency stop, and no physical-stop acknowledgement exists. Firmware remains an empty placeholder; direct preemption and disconnect failsafes need backend/firmware work.
+
+```bash
+npm test         # Transport, speech lifecycle, payload and storage tests with test doubles
+npm run build   # Production files in dist/
+npm run preview # Preview the production build
+```
+
+Deploy only the contents of `dist/` to an HTTPS static host. Do not publish the repository root or backend `.env`. Python runs separately with its existing configuration; its credentials are not automatically exposed to the frontend.
