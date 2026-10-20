@@ -68,9 +68,9 @@ def validate_payload(payload):
 
     now_ms = int(time.time() * 1000)
     age_ms = now_ms - timestamp
-    # if age_ms > 5000:
-    #     print("Message time out:", age_ms, "ms")
-    #     return
+    if age_ms > 5000:
+        print("Message time out:", age_ms, "ms")
+        return
 
     text = json_payload.get("text", "").strip()
     if not text:
