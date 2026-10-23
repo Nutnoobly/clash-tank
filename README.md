@@ -12,6 +12,12 @@ Thai/English voice-controlled tank project using a React controller, MQTT, a Pyt
 
 Settings and the last three submitted messages stay in browser-local storage; passwords stay in memory only. Offline messages are not queued. **ส่งแล้ว** means submitted, not executed by the vehicle.
 
+### Joystick UI preview
+
+The controller opens in **เสียง** (voice) mode. Select **จอย** in the header to try the portrait, one-handed joystick. Tap or drag to select forward, backward, rotate left, or rotate right. Releasing keeps that direction selected; tap or drag into the center to stop. Arrow keys also select directions; Escape or Home returns to center.
+
+The joystick is currently a **UI preview and does not publish vehicle commands**. It can be tried before connecting to a broker. Switching modes, opening settings, hiding the page, or losing the connection resets the selection. After connection loss, the pad is disabled until reconnection. Vehicle command delivery and the agreed heartbeat/expiry failsafe remain future integration work; resetting this preview does not stop physical hardware.
+
 **Stop is not an emergency stop:** **หยุดรถ** sends `STOP` through the same Python/LLM pipeline, without review. There is no vehicle acknowledgement. Do not use a public broker for private or safety-critical control.
 
 ## Run locally

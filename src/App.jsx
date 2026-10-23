@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './components/Icon.jsx';
 import Settings from './components/Settings.jsx';
+import Joystick from './components/Joystick.jsx';
 import { createTransport } from './lib/transport.js';
 import { createSpeechSession } from './lib/speech.js';
 import { MAX_TEXT_LENGTH } from './lib/commands.js';
@@ -15,6 +16,7 @@ export default function App() {
   const [connection, setConnection] = useState('disconnected');
   const [connectionError, setConnectionError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mode, setMode] = useState('voice');
   const [phase, setPhase] = useState('ready');
   const [draft, setDraft] = useState('');
   const [interim, setInterim] = useState('');
@@ -27,6 +29,7 @@ export default function App() {
   const [storageNotice, setStorageNotice] = useState('');
   const transport = useRef(null);
   const speech = useRef(null);
+  const speechGeneration = useRef(0);
   const sendGeneration = useRef(0);
   const connectionGeneration = useRef(0);
   const sendingRef = useRef(false);
@@ -42,6 +45,7 @@ export default function App() {
   const speechAvailable = !!Recognition && window.isSecureContext;
 
   const abortSpeech = useCallback(() => {
+    speechGeneration.current += 1;
     speech.current?.abort();
     speech.current = null;
     setInterim('');
@@ -134,20 +138,30 @@ export default function App() {
     if (listening) setPhase('ready');
   }
 
+  function changeMode(value) {
+    if (value === mode) return;
+    abortSpeech();
+    sendGeneration.current += 1;
+    newCommand();
+    setMode(value);
+  }
+
   function startSpeech() {
     if (sendingRef.current || stoppingRef.current) return;
     if (!speechAvailable) { setSpeechError({ code: 'unsupported', message: window.isSecureContext
       ? 'เบราว์เซอร์นี้ไม่รองรับการถอดเสียง ลอง Safari บน iPhone หรือ Chrome บน Android หรือพิมพ์แทน'
       : 'เปิดเว็บผ่าน HTTPS เพื่อใช้ไมโครโฟน หรือพิมพ์คำสั่งแทน' }); return; }
     abortSpeech();
+    const generation = speechGeneration.current;
     setDraft('');
     setConfidence(undefined);
     setSpeechError(null);
     setSendError('');
     setPhase('listening');
     const session = createSpeechSession(Recognition, language, {
-      onInterim: value => setInterim(value.slice(0, MAX_TEXT_LENGTH)),
+      onInterim: value => { if (generation === speechGeneration.current) setInterim(value.slice(0, MAX_TEXT_LENGTH)); },
       onFinal: (value, score) => {
+        if (generation !== speechGeneration.current) return;
         speech.current = null;
         setInterim('');
         if (value.length > MAX_TEXT_LENGTH) {
@@ -160,6 +174,7 @@ export default function App() {
         setPhase('review');
       },
       onError: (code, message) => {
+        if (generation !== speechGeneration.current) return;
         speech.current = null;
         setSpeechError({ code, message });
         setInterim('');
@@ -245,19 +260,32 @@ export default function App() {
   const lowConfidence = confidence !== undefined && confidence < 0.5;
   const statusLabel = ({ connected: 'เชื่อมต่อแล้ว', connecting: 'กำลังเชื่อมต่อ…', offline: 'การเชื่อมต่อขาด', error: 'เชื่อมต่อไม่สำเร็จ', disconnected: 'ยังไม่ได้เชื่อมต่อ' })[connection];
 
-  return <div className="app-shell">
+  return <div className={`app-shell ${mode === 'joystick' && !settingsOpen ? 'joystick-mode' : ''}`}>
     {settingsOpen ? <Settings settings={settings} connection={connection} onConnect={connect} onDisconnect={disconnect}
       onClose={() => { setSettingsOpen(false); requestAnimationFrame(() => settingsButton.current?.focus()); }} /> : <>
       <header className="header">
-        <a className="wordmark" href="#" aria-label="Clash Tank หน้าหลัก" onClick={event => { event.preventDefault(); abortSpeech(); newCommand(); }}><span>CLASH</span><span>TANK</span></a>
-        <button type="button" className="icon-button" onClick={openSettings} aria-label="เปิดการตั้งค่า" ref={settingsButton}><Icon name="ready-IconSettings" size={22} /></button>
+        <a className="wordmark" href="#" aria-label="Clash Tank หน้าหลัก" onClick={event => { event.preventDefault(); changeMode('voice'); abortSpeech(); newCommand(); }}><span>CLASH</span><span>TANK</span></a>
+        <div className="mode-switch" role="tablist" aria-label="โหมดควบคุม">
+          {[['voice', 'เสียง'], ['joystick', 'จอย']].map(([value, label]) => <button key={value} type="button" role="tab" id={`${value}-tab`}
+            aria-selected={mode === value} aria-controls={`${value}-panel`} tabIndex={mode === value ? 0 : -1}
+            onClick={() => changeMode(value)} onKeyDown={event => {
+              if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                event.preventDefault();
+                const next = event.key === 'Home' ? 'voice' : event.key === 'End' ? 'joystick' : mode === 'voice' ? 'joystick' : 'voice';
+                changeMode(next);
+                document.getElementById(`${next}-tab`)?.focus();
+              }
+            }}>{label}</button>)}
+        </div>
       </header>
       <div className={`connection-status ${online ? 'is-online' : ''}`}>
         <Icon name={online ? 'ready-Ellipse' : 'offline-Ellipse'} size={6} className="status-dot" />
         <span role="status">{statusLabel}</span>
         {!online && <button type="button" className="text-button connection-action" onClick={() => settings.brokerUrl ? connect() : openSettings()} disabled={connection === 'connecting'}>{settings.brokerUrl ? 'เชื่อมต่อ' : 'ตั้งค่า'}</button>}
+        <button type="button" className="icon-button connection-settings" onClick={openSettings} aria-label="เปิดการตั้งค่า" ref={settingsButton}><Icon name="ready-IconSettings" size={18} /></button>
       </div>
-      <main className={`main-content phase-${phase}`}>
+      {mode === 'joystick' ? <Joystick key={connection} unavailable={connectionLost || connection === 'connecting'} reconnecting={connection === 'connecting'}
+        onReconnect={() => settings.brokerUrl ? connect() : openSettings()} /> : <main id="voice-panel" role="tabpanel" aria-labelledby="voice-tab" className={`main-content phase-${phase}`}>
         <div className="instruction" aria-live="polite">
           <h1>{heading}</h1>
           <p className="small muted">{subtitle}</p>
@@ -316,15 +344,15 @@ export default function App() {
             <span className="sent-label"><Icon name="ready-IconCheck" size={12} />ส่งแล้ว</span>
           </li>)}</ol> : <p className="small muted empty-history">ยังไม่มีคำสั่งที่ส่ง</p>}
         </section>
-      </main>
+      </main>}
     </>}
     {storageNotice && <p className="small muted storage-notice" role="status">{storageNotice}</p>}
-    <footer className="stop-footer">
+    {(mode === 'voice' || settingsOpen) && <footer className="stop-footer">
       <button type="button" className="button danger" onClick={() => submit(true)} disabled={!online || stopping}>
         <Icon name="ready-IconStop" size={20} />{stopping ? 'กำลังส่งคำสั่งหยุด…' : 'หยุดรถ'}
       </button>
       <p className="small muted">{online ? 'ส่งคำสั่งหยุดทันที โดยไม่ต้องยืนยัน' : 'ต้องเชื่อมต่อก่อนส่งคำสั่งหยุด'}</p>
-    </footer>
+    </footer>}
     <dialog ref={languageDialog} className="language-dialog" aria-labelledby="language-title" onClick={event => { if (event.target === languageDialog.current) languageDialog.current.close(); }}>
       <h2 id="language-title">ภาษาที่ใช้พูด</h2>
       {Object.entries(LANGUAGES).map(([value, label]) => <button type="button" key={value} className="language-option" onClick={() => changeLanguage(value)} aria-pressed={language === value}>{label}{language === value && <Icon name="sent-IconCheck" size={32} />}</button>)}
