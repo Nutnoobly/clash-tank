@@ -16,8 +16,14 @@ def parse_voice_request(payload, now_ms):
     if not isinstance(session, str) or not SESSION.fullmatch(session) or type(request.get("seq")) is not int or request["seq"] != 1:
         raise ValueError("Missing or invalid control session")
     timestamp = request.get("timestamp")
-    if type(timestamp) not in (int, float) or not math.isfinite(timestamp) or not -1000 <= now_ms - timestamp <= 5000:
-        raise ValueError("Stale or invalid timestamp")
+    if type(timestamp) not in (int, float) or not math.isfinite(timestamp):
+        raise ValueError(f"Invalid timestamp: expected finite epoch milliseconds, got {type(timestamp).__name__}")
+    age_ms = now_ms - timestamp
+    timing = f"age_ms={age_ms}; sender_ms={timestamp}; server_ms={now_ms}"
+    if age_ms < -1000:
+        raise ValueError(f"Timestamp ahead of server clock: {timing}; allowed_future_ms=1000. Check device clocks.")
+    if age_ms > 5000:
+        raise ValueError(f"Timestamp expired: {timing}; max_age_ms=5000. Check device clocks or queued processing.")
     confidence = request.get("confidence", 1)
     if type(confidence) not in (int, float) or not math.isfinite(confidence) or not 0.5 <= confidence <= 1:
         raise ValueError("Invalid confidence")

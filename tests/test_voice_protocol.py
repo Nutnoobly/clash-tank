@@ -21,6 +21,22 @@ class VoiceProtocolTests(unittest.TestCase):
         result = build_voice_response(request, json.dumps({"session": "forged", "source": "web", "commands": [{"action": "FORWARD", "duration": 1000}]}))
         self.assertEqual(result, {"type": "voice", "source": "voice", "session": "voice-A", "seq": 1, "commands": [{"action": "FORWARD", "duration": 1000}]})
 
+    def test_timestamp_rejection_identifies_the_direction_and_age_without_command_text(self):
+        for timestamp, reason, age in ((12000, "ahead", -2000), (4000, "expired", 6000)):
+            with self.subTest(timestamp=timestamp), self.assertRaisesRegex(ValueError, rf"{reason}.*age_ms={age}") as caught:
+                parse_voice_request(json.dumps(self.request(timestamp=timestamp)), 10000)
+            self.assertNotIn("เดินหน้า", str(caught.exception))
+        with self.assertRaisesRegex(ValueError, "epoch milliseconds"):
+            parse_voice_request(json.dumps(self.request(timestamp="10000")), 10000)
+
+    def test_timestamp_boundaries_and_observed_clock_difference(self):
+        for timestamp in (11000, 5000, 10475):
+            with self.subTest(timestamp=timestamp):
+                self.assertEqual(parse_voice_request(json.dumps(self.request(timestamp=timestamp)), 10000)["session"], "voice-A")
+        for timestamp in (11001, 4999):
+            with self.subTest(timestamp=timestamp), self.assertRaises(ValueError):
+                parse_voice_request(json.dumps(self.request(timestamp=timestamp)), 10000)
+
     def test_rejects_invalid_model_output(self):
         for commands in ([], [{"action": "FORWARD", "duration": -1}], [{"action": "FORWARD", "duration": True}], [{"action": "FORWARD", "duration": 60001}], [{"action": "UNKNOWN", "duration": 100}]):
             with self.subTest(commands=commands), self.assertRaises(ValueError):
