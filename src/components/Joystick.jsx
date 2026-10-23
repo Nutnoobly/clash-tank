@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { directionAt, JOYSTICK_LABELS } from '../lib/joystick.js';
 
 const artwork = Object.fromEntries(
@@ -8,16 +8,17 @@ const artwork = Object.fromEntries(
 );
 const KEY_DIRECTIONS = { ArrowUp: 'forward', ArrowDown: 'backward', ArrowLeft: 'left', ArrowRight: 'right', Escape: 'neutral', Home: 'neutral' };
 
-export default function Joystick({ unavailable, reconnecting, onReconnect }) {
-  const [direction, setDirection] = useState('neutral');
+export default function Joystick({ direction, onDirectionChange, unavailable, reconnecting, onReconnect, error }) {
   const pointer = useRef(null);
+  const directionRef = useRef(direction);
+  directionRef.current = direction;
   const pad = useRef(null);
   const selected = unavailable ? 'neutral' : direction;
 
   useEffect(() => {
     function reset() {
       pointer.current = null;
-      setDirection('neutral');
+      onDirectionChange('neutral');
     }
     function suspend() { if (document.hidden) reset(); }
     document.addEventListener('visibilitychange', suspend);
@@ -30,17 +31,23 @@ export default function Joystick({ unavailable, reconnecting, onReconnect }) {
       window.removeEventListener('blur', reset);
       window.removeEventListener('offline', reset);
     };
-  }, []);
+  }, [onDirectionChange]);
 
-  function chooseAt(event) {
-    setDirection(directionAt(event.clientX, event.clientY, pad.current.getBoundingClientRect()));
+  function choose(value, force = false) {
+    if (unavailable || (!force && value === directionRef.current)) return;
+    directionRef.current = value;
+    onDirectionChange(value);
+  }
+
+  function chooseAt(event, force = false) {
+    choose(directionAt(event.clientX, event.clientY, pad.current.getBoundingClientRect()), force);
   }
 
   function begin(event) {
     if (unavailable || pointer.current !== null || !event.isPrimary || event.button !== 0) return;
     pointer.current = event.pointerId;
     event.currentTarget.setPointerCapture(event.pointerId);
-    chooseAt(event);
+    chooseAt(event, true);
   }
 
   function release(event) {
@@ -53,7 +60,7 @@ export default function Joystick({ unavailable, reconnecting, onReconnect }) {
   function cancel(event) {
     if (pointer.current !== event.pointerId) return;
     pointer.current = null;
-    setDirection('neutral');
+    onDirectionChange('neutral');
   }
 
   return <main id="joystick-panel" role="tabpanel" aria-labelledby="joystick-tab" className="joystick-content">
@@ -66,7 +73,8 @@ export default function Joystick({ unavailable, reconnecting, onReconnect }) {
       <p className="joystick-command-label" role="status" aria-live="polite" aria-atomic="true">
         {unavailable ? 'หยุด · รอเชื่อมต่อใหม่' : JOYSTICK_LABELS[selected]}
       </p>
-      <p className="small muted joystick-preview">ตัวอย่าง UI · ยังไม่ส่งคำสั่งไปยังรถ</p>
+      <p className="small muted joystick-preview">ส่งตรงผ่าน MQTT · ยังไม่มีสถานะยืนยันจากรถ</p>
+      {error && <p className="notice" role="alert">{error}</p>}
     </div>
     <div className="joystick-reach-space" />
     <div className="joystick-pad" ref={pad} role="group" aria-label="จอยเลือกทิศทาง" aria-describedby="joystick-hint"
@@ -76,7 +84,7 @@ export default function Joystick({ unavailable, reconnecting, onReconnect }) {
       onKeyDown={event => {
         if (!unavailable && KEY_DIRECTIONS[event.key]) {
           event.preventDefault();
-          setDirection(KEY_DIRECTIONS[event.key]);
+          choose(KEY_DIRECTIONS[event.key], true);
         }
       }}>
       {Object.entries(artwork).map(([state, src]) => <img key={state} src={src} width="352" height="352" alt="" aria-hidden="true" draggable="false"
@@ -85,7 +93,7 @@ export default function Joystick({ unavailable, reconnecting, onReconnect }) {
         aria-label={state === 'neutral' ? 'หยุด · กลับกลางจอย' : label} aria-pressed={selected === state} disabled={unavailable}
         onClick={event => {
           // Pointer gestures are handled by the pad; clicks from keyboard/AT select a button.
-          if (event.detail === 0) setDirection(state);
+          if (event.detail === 0) choose(state, true);
         }} />)}
     </div>
     <div id="joystick-hint" className="joystick-hint">

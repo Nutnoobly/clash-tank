@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include "ControlSession.h"
 
 // ========== WiFi ==========
 const char* ssid = "iPhone";
@@ -23,6 +24,7 @@ PubSubClient client(espClient);
 // ========== Defense State ==========
 bool defenseRequested = false;
 bool defenseRunning = false;
+ControlSession controlSession;
 
 // --------------------------------------------------
 // Play buzzer sweep up and down exactly one cycle
@@ -76,16 +78,6 @@ void playDefenseSound() {
 // --------------------------------------------------
 void callback(char* receivedTopic, byte* payload,
               unsigned int length) {
-  Serial.println();
-  Serial.print("MQTT Topic: ");
-  Serial.println(receivedTopic);
-
-  Serial.print("Message: ");
-  for (unsigned int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-
   // Ignore messages from other topics
   if (strcmp(receivedTopic, topic) != 0) {
     return;
@@ -102,6 +94,30 @@ void callback(char* receivedTopic, byte* payload,
     Serial.println(error.c_str());
     return;
   }
+
+  const char* type = doc["type"] | "";
+  const char* source = doc["source"] | "";
+  const char* session = doc["session"] | "";
+  if (!doc["type"].is<const char*>() && strcmp(doc["action"] | "", "STOP") == 0) {
+    controlSession.invalidate();
+    defenseRequested = false;
+    return;
+  }
+  if (strcmp(type, "control") == 0 && strcmp(source, "web") == 0) {
+    const char* mode = doc["mode"] | "";
+    if ((strcmp(mode, "voice") == 0 || strcmp(mode, "joystick") == 0) &&
+        controlSession.begin(session, strcmp(mode, "joystick") == 0, millis())) defenseRequested = false;
+    return;
+  }
+  if (!doc["seq"].is<uint32_t>()) return;
+  uint32_t sequence = doc["seq"].as<uint32_t>();
+  if (strcmp(type, "stop") == 0 && strcmp(source, "web") == 0) {
+    if (strcmp(doc["action"] | "", "STOP") == 0 && controlSession.acceptStop(session, sequence)) defenseRequested = false;
+    return;
+  }
+  // Joystick refreshes share this topic; ignore them without flooding Serial.
+  if (strcmp(type, "voice") != 0 || strcmp(source, "voice") != 0 ||
+      !controlSession.acceptVoice(session, sequence)) return;
 
   // Read commands array
   JsonArray commands = doc["commands"].as<JsonArray>();
@@ -205,10 +221,14 @@ void setup() {
 // --------------------------------------------------
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
+    controlSession.invalidate();
+    defenseRequested = false;
     setupWiFi();
   }
 
   if (!client.connected()) {
+    controlSession.invalidate();
+    defenseRequested = false;
     reconnectMQTT();
   }
 

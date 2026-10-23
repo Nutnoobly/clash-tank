@@ -1,4 +1,19 @@
 export const MAX_TEXT_LENGTH = 1000;
+export const DEFAULT_COMMAND_TOPIC = 'n8q4x2m7v9p3k6t1r5z0/command_out';
+export const CONTROL_TIMEOUT_MS = 500;
+export const HEARTBEAT_MS = 150;
+export const isSession = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+
+export function validateControlPayload(payload) {
+  if (payload?.action === 'STOP' && Object.keys(payload).length === 1) return;
+  if (!payload || !isSession(payload.session) || payload.source !== 'web') throw new Error('ข้อมูล session ไม่ถูกต้อง');
+  if (payload.type === 'control' && ['voice', 'joystick'].includes(payload.mode)) return;
+  if (!Number.isInteger(payload.seq) || payload.seq < 1 || payload.seq > 0xffffffff) throw new Error('ลำดับคำสั่งไม่ถูกต้อง');
+  if (payload.type === 'stop' && payload.action === 'STOP') return;
+  if (payload.type === 'joystick' && ['FORWARD', 'BACKWARD', 'TURN_LEFT', 'TURN_RIGHT'].includes(payload.action)
+    && payload.duration === CONTROL_TIMEOUT_MS) return;
+  throw new Error('คำสั่งควบคุมรถไม่ถูกต้อง');
+}
 
 export function validateSettings(settings) {
   const errors = {};
@@ -10,10 +25,11 @@ export function validateSettings(settings) {
   } catch {
     errors.brokerUrl = 'กรอก WSS URL เช่น wss://your-broker:8884/mqtt';
   }
-  const topic = settings.voiceTopic.trim();
-  if (!topic || /[+#\u0000]/u.test(topic) || new TextEncoder().encode(topic).length > 65535) {
-    errors.voiceTopic = 'กรอก topic ให้ตรงกับเซิร์ฟเวอร์ โดยไม่ใช้ + หรือ #';
+  for (const [name, value] of [['voiceTopic', settings.voiceTopic], ['commandTopic', settings.commandTopic ?? DEFAULT_COMMAND_TOPIC]]) {
+    const topic = typeof value === 'string' ? value.trim() : '';
+    if (!topic || /[+#\u0000]/u.test(topic) || new TextEncoder().encode(topic).length > 65535) errors[name] = 'กรอก topic ให้ตรงกับระบบ โดยไม่ใช้ + หรือ #';
   }
+  if (settings.voiceTopic?.trim() === (settings.commandTopic ?? DEFAULT_COMMAND_TOPIC).trim()) errors.commandTopic = 'Voice topic และ Command topic ต้องต่างกัน';
   if (settings.password && !settings.username.trim()) {
     errors.username = 'กรอกชื่อผู้ใช้เมื่อใช้รหัสผ่าน';
   }

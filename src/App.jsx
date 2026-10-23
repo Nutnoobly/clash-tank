@@ -3,6 +3,7 @@ import Icon from './components/Icon.jsx';
 import Settings from './components/Settings.jsx';
 import Joystick from './components/Joystick.jsx';
 import { createTransport } from './lib/transport.js';
+import { createVehicleControl } from './lib/vehicle.js';
 import { createSpeechSession } from './lib/speech.js';
 import { MAX_TEXT_LENGTH } from './lib/commands.js';
 import { loadSettings, loadHistory, loadLanguage, saveSettings, writeStored, STORAGE_KEYS } from './lib/storage.js';
@@ -17,6 +18,7 @@ export default function App() {
   const [connectionError, setConnectionError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mode, setMode] = useState('voice');
+  const [joystickDirection, setJoystickDirection] = useState('neutral');
   const [phase, setPhase] = useState('ready');
   const [draft, setDraft] = useState('');
   const [interim, setInterim] = useState('');
@@ -28,6 +30,8 @@ export default function App() {
   const [stopping, setStopping] = useState(false);
   const [storageNotice, setStorageNotice] = useState('');
   const transport = useRef(null);
+  const vehicle = useRef(null);
+  const modeRef = useRef('voice');
   const speech = useRef(null);
   const speechGeneration = useRef(0);
   const sendGeneration = useRef(0);
@@ -51,12 +55,26 @@ export default function App() {
     setInterim('');
   }, []);
 
+  const stopVehicle = useCallback(() => {
+    setJoystickDirection('neutral');
+    vehicle.current?.stop().catch(() => {});
+  }, []);
+
+  const selectDirection = useCallback(value => {
+    setJoystickDirection(value);
+    setSendError('');
+    vehicle.current?.move(value).catch(error => {
+      if (mounted.current) { setJoystickDirection('neutral'); setSendError(error.message); }
+    });
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       sendGeneration.current += 1;
       connectionGeneration.current += 1;
+      vehicle.current?.dispose();
       transport.current?.close();
       speech.current?.abort();
     };
@@ -65,12 +83,15 @@ export default function App() {
   useEffect(() => {
     function suspend() {
       if (!document.hidden) return;
+      stopVehicle();
+      sendGeneration.current += 1;
       speech.current?.abort();
       speech.current = null;
       setPhase(current => ['listening', 'processing'].includes(current) ? 'ready' : current);
       setInterim('');
     }
     function offline() {
+      stopVehicle();
       connectionGeneration.current += 1;
       transport.current?.close();
       setConnection('offline');
@@ -79,12 +100,14 @@ export default function App() {
       setPhase(current => ['listening', 'processing'].includes(current) ? 'ready' : current);
     }
     document.addEventListener('visibilitychange', suspend);
+    window.addEventListener('pagehide', stopVehicle);
     window.addEventListener('offline', offline);
     return () => {
       document.removeEventListener('visibilitychange', suspend);
+      window.removeEventListener('pagehide', stopVehicle);
       window.removeEventListener('offline', offline);
     };
-  }, [abortSpeech]);
+  }, [abortSpeech, stopVehicle]);
 
   useEffect(() => {
     if (!writeStored(STORAGE_KEYS.history, history)) {
@@ -97,6 +120,8 @@ export default function App() {
   }
 
   function openSettings() {
+    stopVehicle();
+    sendGeneration.current += 1;
     abortSpeech();
     if (listening) setPhase('ready');
     setSettingsOpen(true);
@@ -104,6 +129,8 @@ export default function App() {
 
   async function connect(value = settings) {
     const generation = ++connectionGeneration.current;
+    vehicle.current?.dispose();
+    setJoystickDirection('neutral');
     transport.current?.close();
     setSettings(value);
     if (!saveSettings(value)) setStorageNotice('บันทึกการตั้งค่าไม่ได้ แต่ยังเชื่อมต่อได้ตามปกติ');
@@ -119,8 +146,15 @@ export default function App() {
         if (!mounted.current || generation !== connectionGeneration.current) return;
         setConnection(state);
         setConnectionError(error);
+        if (state === 'connected') vehicle.current?.setMode(modeRef.current).catch(() => {});
+        else { vehicle.current?.dispose(); setJoystickDirection('neutral'); }
       });
       transport.current = current;
+      vehicle.current = createVehicleControl(current, error => {
+        if (!mounted.current || generation !== connectionGeneration.current) return;
+        setJoystickDirection('neutral');
+        setSendError(error.message);
+      });
       current.open(value);
     } catch {
       if (!mounted.current || generation !== connectionGeneration.current) return;
@@ -130,6 +164,7 @@ export default function App() {
   }
 
   function disconnect() {
+    stopVehicle();
     connectionGeneration.current += 1;
     transport.current?.close();
     abortSpeech();
@@ -141,6 +176,9 @@ export default function App() {
   function changeMode(value) {
     if (value === mode) return;
     abortSpeech();
+    stopVehicle();
+    modeRef.current = value;
+    if (online) vehicle.current?.setMode(value).catch(() => {});
     sendGeneration.current += 1;
     newCommand();
     setMode(value);
@@ -215,7 +253,7 @@ export default function App() {
     else { sendingRef.current = true; setSending(true); }
     setSendError('');
     try {
-      const payload = await transport.current.send(stop ? 'STOP' : draft, stop ? undefined : confidence);
+      const payload = await (stop ? vehicle.current.stop(true) : vehicle.current.sendVoice(draft, confidence));
       if (!mounted.current) return;
       const entry = { text: stop ? 'หยุดรถ' : payload.text, timestamp: payload.timestamp, stop };
       setHistory(current => {
@@ -284,7 +322,8 @@ export default function App() {
         {!online && <button type="button" className="text-button connection-action" onClick={() => settings.brokerUrl ? connect() : openSettings()} disabled={connection === 'connecting'}>{settings.brokerUrl ? 'เชื่อมต่อ' : 'ตั้งค่า'}</button>}
         <button type="button" className="icon-button connection-settings" onClick={openSettings} aria-label="เปิดการตั้งค่า" ref={settingsButton}><Icon name="ready-IconSettings" size={18} /></button>
       </div>
-      {mode === 'joystick' ? <Joystick key={connection} unavailable={connectionLost || connection === 'connecting'} reconnecting={connection === 'connecting'}
+      {mode === 'joystick' ? <Joystick key={connection} direction={joystickDirection} onDirectionChange={selectDirection}
+        unavailable={!online} reconnecting={connection === 'connecting'} error={sendError || connectionError}
         onReconnect={() => settings.brokerUrl ? connect() : openSettings()} /> : <main id="voice-panel" role="tabpanel" aria-labelledby="voice-tab" className={`main-content phase-${phase}`}>
         <div className="instruction" aria-live="polite">
           <h1>{heading}</h1>

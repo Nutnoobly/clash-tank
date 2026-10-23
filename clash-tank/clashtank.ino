@@ -5,6 +5,7 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include "ControlSession.h"
 
 // PWM pins on UNO R4: 3, 5, 6, 9, 10, 11
 const int ENA = 2;
@@ -43,6 +44,8 @@ int commandCount = 0;
 int currentCommand = 0;
 
 bool running = false;
+bool manualRunning = false;
+ControlSession controlSession;
 bool wifiWasConnected = false;
 
 unsigned long commandStart = 0;
@@ -64,6 +67,7 @@ bool lcdReady = false;
 bool showLogPage = false;
 
 void stopCar();
+void stopAll();
 void setMotorSpeed(int speedA, int speedB);
 void moveForward(int speed);
 void moveBackward(int speed);
@@ -155,24 +159,26 @@ void setup() {
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
   client.setKeepAlive(30);
+  client.setSocketTimeout(1);
   client.setBufferSize(1024);
 }
 
 void loop() {
   unsigned long now = millis();
+  if (controlSession.expire(now)) {
+    stopAll();
+    logMessage("Joystick timeout - stopped");
+  }
 
   if (!wifiConnected()) {
+    controlSession.invalidate();
     if (wifiWasConnected) {
       wifiWasConnected = false;
       logMessage("WiFi disconnected");
     }
 
-    if (running) {
-      stopCar();
-      running = false;
-      commandCount = 0;
-      currentCommand = 0;
-      currentAction = "IDLE";
+    if (running || manualRunning) {
+      stopAll();
       logMessage("WiFi lost - motor stopped");
     }
 
@@ -194,18 +200,20 @@ void loop() {
   }
 
   if (!client.connected()) {
-    if (running) {
-      stopCar();
-      running = false;
-      commandCount = 0;
-      currentCommand = 0;
-      currentAction = "IDLE";
+    controlSession.invalidate();
+    if (running || manualRunning) {
+      stopAll();
       logMessage("MQTT lost - motor stopped");
     }
 
     reconnectMQTT();
   } else {
     client.loop();
+  }
+
+  if (controlSession.expire(millis())) {
+    stopAll();
+    logMessage("Joystick timeout - stopped");
   }
 
   if (running &&
@@ -220,8 +228,20 @@ void loop() {
     startNextCommand();
   }
 
-  printStatus();
-  updateLCD();
+  // Do not spend the short joystick lease on LCD writes or repeated Serial logs.
+  if (!manualRunning) {
+    printStatus();
+    updateLCD();
+  }
+}
+
+void stopAll() {
+  stopCar();
+  running = false;
+  manualRunning = false;
+  commandCount = 0;
+  currentCommand = 0;
+  currentAction = "STOP";
 }
 
 void reconnectMQTT() {
@@ -267,24 +287,53 @@ void callback(char* receivedTopic, byte* payload,
     return;
   }
 
-  logMessage("MQTT command received");
+  const uint32_t now = millis();
+  if (controlSession.expire(now)) stopAll();
+  const char* type = doc["type"] | "";
+  const char* source = doc["source"] | "";
+  const char* session = doc["session"] | "";
 
-  if (doc["action"].is<const char*>()) {
-    String action = doc["action"].as<String>();
-    action.trim();
-    action.toUpperCase();
-
-    if (action == "STOP") {
-      stopCar();
-      running = false;
-      commandCount = 0;
-      currentCommand = 0;
-      currentAction = "STOP";
-      logMessage("STOP received");
-      return;
-    }
+  // Untagged motion is rejected; a legacy bare STOP remains safe to accept.
+  if (!doc["type"].is<const char*>() && strcmp(doc["action"] | "", "STOP") == 0) {
+    controlSession.invalidate();
+    stopAll();
+    return;
   }
 
+  if (strcmp(source, "web") == 0 && strcmp(type, "control") == 0) {
+    const char* mode = doc["mode"] | "";
+    if (strcmp(mode, "voice") != 0 && strcmp(mode, "joystick") != 0) return;
+    if (controlSession.begin(session, strcmp(mode, "joystick") == 0, now)) {
+      stopAll();
+      logMessage(String("Mode: ") + mode);
+    }
+    return;
+  }
+
+  if (!doc["seq"].is<uint32_t>()) return;
+  uint32_t sequence = doc["seq"].as<uint32_t>();
+  if (strcmp(source, "web") == 0 && strcmp(type, "stop") == 0) {
+    if (strcmp(doc["action"] | "", "STOP") == 0 && controlSession.acceptStop(session, sequence)) stopAll();
+    return;
+  }
+
+  if (strcmp(source, "web") == 0 && strcmp(type, "joystick") == 0) {
+    const char* action = doc["action"] | "";
+    if (strcmp(action, "FORWARD") != 0 && strcmp(action, "BACKWARD") != 0 &&
+        strcmp(action, "TURN_LEFT") != 0 && strcmp(action, "TURN_RIGHT") != 0) return;
+    if (!doc["duration"].is<uint32_t>() || doc["duration"].as<uint32_t>() != ControlSession::TIMEOUT_MS) return;
+    if (!controlSession.acceptJoystick(session, sequence, now)) return;
+    // A heartbeat extends the lease without pulsing the motor driver off/on.
+    if (!manualRunning || currentAction != action) {
+      stopAll();
+      executeAction(String(action));
+      currentAction = action;
+      manualRunning = true;
+    }
+    return;
+  }
+
+  if (strcmp(type, "voice") != 0 || strcmp(source, "voice") != 0) return;
   if (doc["commands"].is<JsonArray>()) {
     JsonArray arr = doc["commands"].as<JsonArray>();
 
@@ -321,8 +370,8 @@ void callback(char* receivedTopic, byte* payload,
       newCount++;
     }
 
-    stopCar();
-    running = false;
+    if (!controlSession.acceptVoice(session, sequence)) return;
+    stopAll();
 
     for (int i = 0; i < newCount; i++) {
       commands[i] = newCommands[i];
@@ -336,34 +385,7 @@ void callback(char* receivedTopic, byte* payload,
     return;
   }
 
-  if (doc["action"].is<const char*>() &&
-      doc["duration"].is<unsigned long>()) {
-    String action = doc["action"].as<String>();
-    action.trim();
-    action.toUpperCase();
-
-    long duration = doc["duration"].as<long>();
-
-    if (!validAction(action) ||
-        duration <= 0 ||
-        duration > (long)MAX_DURATION) {
-      logMessage("Invalid action or duration");
-      return;
-    }
-
-    commands[0].action = action;
-    commands[0].duration = duration;
-    commandCount = 1;
-    currentCommand = 0;
-
-    stopCar();
-    running = false;
-
-    startNextCommand();
-    return;
-  }
-
-  logMessage("Missing action or commands");
+  logMessage("Missing voice commands");
 }
 
 void startNextCommand() {
