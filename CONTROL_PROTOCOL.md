@@ -69,7 +69,7 @@ Each queued ATTACK stops the motors and runs exactly one cycle: 91 through 180 d
 
 The cycle runs in the main loop, outside the MQTT callback. The supplied blocking delays mean MQTT messages (including STOP and new session claims), disconnect detection and status updates wait until the cycle finishes. A STOP received before execution clears the queued attack. ESP32 ignores ATTACK and continues handling DEFENSE; mixed batches containing DEFENSE remain rejected as a whole by the UNO.
 
-## Joystick defense (web publisher only)
+## ESP32 defense (voice and joystick)
 
 The web defense button claims a fresh joystick session and sends the following as two separate messages to `command_out`, QoS 0, no retain:
 
@@ -78,7 +78,9 @@ The web defense button claims a fresh joystick session and sends the following a
 {"type":"joystick","source":"web","session":"joy-defense-A","seq":1,"action":"DEFENSE","duration":500}
 ```
 
-The claim cancels existing movement. The browser centers the joystick, sends DEFENSE once without a heartbeat, and shows submission feedback for 350 ms. It never resumes motion automatically. `duration:500` is the joystick envelope lease, not the buzzer playback time. The current ESP32 firmware ignores joystick packets, so this web-only preparation does not yet play a defense sound. No ESP32 firmware changes are included.
+The claim cancels existing movement. The browser centers the joystick, sends DEFENSE once without a heartbeat, and shows submission feedback for 350 ms. It never resumes motion automatically. `duration:500` is the joystick envelope lease, not the buzzer playback time.
+
+The ESP32 accepts root `action:"DEFENSE"` with `type:"joystick", source:"web"`, and DEFENSE entries in the existing voice `commands` array. Both play the existing frequency sweep for a fixed 5000 ms, ignoring any supplied `duration` (including a missing duration). Multiple DEFENSE entries in the same batch queue only one cycle. The buzzer is switched off afterward. The firmware still uses a blocking playback loop, so MQTT messages, including STOP, are processed after playback finishes. This change does not add session validation or execution acknowledgements to the latest ESP32 sketch.
 
 ## Timing and limits
 

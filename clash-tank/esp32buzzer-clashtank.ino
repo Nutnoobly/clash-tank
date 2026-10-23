@@ -23,19 +23,19 @@ PubSubClient client(espClient);
 bool defenseRequested = false;
 bool defenseRunning = false;
 
-unsigned long defenseDuration = 10000;
+const unsigned long DEFENSE_DURATION_MS = 5000;
 
 // --------------------------------------------------
-// Play DEFENSE sound for the requested duration
+// Play DEFENSE sound for a fixed five seconds, regardless of MQTT duration.
 // --------------------------------------------------
 
-void playDefenseSound(unsigned long duration) {
+void playDefenseSound() {
   defenseRunning = true;
 
   Serial.println();
   Serial.println("========== DEFENSE ==========");
   Serial.print("Duration: ");
-  Serial.print(duration);
+  Serial.print(DEFENSE_DURATION_MS);
   Serial.println(" ms");
 
   unsigned long startTime = millis();
@@ -43,7 +43,7 @@ void playDefenseSound(unsigned long duration) {
   int hz = 0;
   int direction = 100;
 
-  while (millis() - startTime < duration) {
+  while (millis() - startTime < DEFENSE_DURATION_MS) {
 
     if (hz <= 0) {
       hz = 0;
@@ -84,6 +84,15 @@ void playDefenseSound(unsigned long duration) {
 // --------------------------------------------------
 // MQTT callback
 // --------------------------------------------------
+void requestDefense() {
+  if (!defenseRunning && !defenseRequested) {
+    defenseRequested = true;
+    Serial.println("DEFENSE queued: fixed 5000 ms.");
+  } else {
+    Serial.println("DEFENSE already running/queued.");
+  }
+}
+
 void callback(char* receivedTopic, byte* payload, unsigned int length) {
   Serial.println();
   Serial.println("========== MQTT RECEIVED ==========");
@@ -131,7 +140,15 @@ void callback(char* receivedTopic, byte* payload, unsigned int length) {
   Serial.print("Sequence: ");
   Serial.println(seq);
 
-  // Read commands array
+  // The web joystick sends action at the root; its 500 ms duration is a
+  // control-envelope lease and must not determine the buzzer playback time.
+  if (strcmp(type, "joystick") == 0 && strcmp(source, "web") == 0) {
+    if (strcmp(doc["action"] | "", "DEFENSE") == 0) requestDefense();
+    return;
+  }
+
+  // Voice results contain a commands array. Every DEFENSE uses the same
+  // fixed playback time, including legacy arrays with no duration field.
   JsonArray commands = doc["commands"].as<JsonArray>();
 
   if (commands.isNull()) {
@@ -142,25 +159,11 @@ void callback(char* receivedTopic, byte* payload, unsigned int length) {
   for (JsonObject command : commands) {
     const char* action = command["action"] | "";
 
-    // แก้ไขตรงนี้: ใช้ defenseDuration เป็นค่าสำรอง (ถ้าใน JSON ไม่ได้ส่ง duration มา จะคงค่า 10000 ไว้)
-    unsigned long duration = command["duration"] | defenseDuration;
-
     Serial.print("Action: ");
     Serial.println(action);
 
-    Serial.print("Duration: ");
-    Serial.print(duration);
-    Serial.println(" ms");
-
     if (strcmp(action, "DEFENSE") == 0) {
-      if (!defenseRunning && !defenseRequested) {
-        defenseDuration = duration;
-        defenseRequested = true;
-
-        Serial.println("DEFENSE queued successfully!");
-      } else {
-        Serial.println("DEFENSE already running/queued.");
-      }
+      requestDefense();
     } else {
       Serial.println("Unknown action.");
     }
@@ -257,9 +260,9 @@ void loop() {
 
   client.loop();
 
-  // Play DEFENSE using duration from MQTT
+  // Play one fixed five-second cycle for either voice or joystick defense.
   if (defenseRequested && !defenseRunning) {
     defenseRequested = false;
-    playDefenseSound(defenseDuration);
+    playDefenseSound();
   }
 }

@@ -20,7 +20,7 @@ The controller opens in **เสียง** (voice) mode. After automatic connec
 
 Microphone, language/mode switches, and joystick use the approved dark neumorphic Figma design. **โจมตี** sends one direct `ATTACK` packet after claiming a fresh joystick session, cancels movement heartbeats, and centers the joystick. The browser waits 2.5 seconds before accepting another combat action or direction, allowing for the UNO's approximately 2.2-second blocking servo cycle. Submission is not hardware acknowledgement. Movement never resumes automatically; select a new direction afterward. The UNO must have the firmware supporting joystick `ATTACK` uploaded.
 
-**ป้องกัน** now publishes one `DEFENSE` packet directly to `command_out`, with a fresh joystick session, increasing sequence, and `duration:500`. It cancels motion and centers the joystick, with 350 ms submission feedback and no automatic repeat or movement resume. This is web-side preparation only: the current ESP32 firmware ignores joystick packets, so the buzzer will not execute this command until ESP32 support is added. Its firmware is unchanged.
+**ป้องกัน** publishes one `DEFENSE` packet directly to `command_out`, with a fresh joystick session, increasing sequence, and `duration:500`. It cancels motion and centers the joystick, with 350 ms submission feedback and no automatic repeat or movement resume. The updated ESP32 sketch accepts both joystick and voice defense and plays the buzzer for a fixed **5 seconds**, ignoring MQTT `duration`. Its playback loop is blocking, so MQTT/STOP processing waits until playback finishes. Upload the updated ESP32 sketch to enable this behavior on hardware.
 
 Joystick commands publish directly to `n8q4x2m7v9p3k6t1r5z0/command_out`, bypassing Python/LLM. Motion refreshes every 150 ms with a fixed 500 ms lease. The UNO stops and invalidates the joystick session when its lease expires. Refreshing the same direction does not stop/restart the motors. Switching modes, opening settings, hiding the page, losing focus in joystick mode, or disconnecting cancels the heartbeat and attempts STOP. Reconnecting always starts centered and requires a new selection. A frozen browser timer also disarms instead of resuming automatically.
 
@@ -45,6 +45,7 @@ npm run build    # Production files in dist/
 npm run preview  # Preview the build
 python -m unittest discover -s tests -p 'test_*.py'
 python tests/run_firmware_tests.py  # Requires g++ or clang++
+python tests/run_esp32_defense_tests.py  # Requires g++ and ArduinoJson 7
 ```
 
 Deploy only `dist/` to a static host. Never deploy `.env` or backend credentials.
