@@ -2,6 +2,8 @@ export const MAX_TEXT_LENGTH = 1000;
 export const DEFAULT_COMMAND_TOPIC = 'n8q4x2m7v9p3k6t1r5z0/command_out';
 export const CONTROL_TIMEOUT_MS = 500;
 export const HEARTBEAT_MS = 150;
+// The UNO attack cycle blocks for about 2200 ms; leave a small recovery margin.
+export const ATTACK_RECOVERY_MS = 2500;
 export const isSession = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
 
 export function validateControlPayload(payload) {
@@ -10,7 +12,7 @@ export function validateControlPayload(payload) {
   if (payload.type === 'control' && ['voice', 'joystick'].includes(payload.mode)) return;
   if (!Number.isInteger(payload.seq) || payload.seq < 1 || payload.seq > 0xffffffff) throw new Error('ลำดับคำสั่งไม่ถูกต้อง');
   if (payload.type === 'stop' && payload.action === 'STOP') return;
-  if (payload.type === 'joystick' && ['FORWARD', 'BACKWARD', 'TURN_LEFT', 'TURN_RIGHT'].includes(payload.action)
+  if (payload.type === 'joystick' && ['FORWARD', 'BACKWARD', 'TURN_LEFT', 'TURN_RIGHT', 'ATTACK'].includes(payload.action)
     && payload.duration === CONTROL_TIMEOUT_MS) return;
   throw new Error('คำสั่งควบคุมรถไม่ถูกต้อง');
 }

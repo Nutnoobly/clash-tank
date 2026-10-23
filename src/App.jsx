@@ -6,7 +6,7 @@ import ConnectionGate from './components/ConnectionGate.jsx';
 import { createTransport } from './lib/transport.js';
 import { createVehicleControl } from './lib/vehicle.js';
 import { createSpeechSession } from './lib/speech.js';
-import { MAX_TEXT_LENGTH } from './lib/commands.js';
+import { MAX_TEXT_LENGTH, ATTACK_RECOVERY_MS } from './lib/commands.js';
 import { loadSettings, loadHistory, loadLanguage, saveSettings, writeStored, STORAGE_KEYS } from './lib/storage.js';
 
 const LANGUAGES = { 'th-TH': 'ภาษาไทย', 'en-US': 'English' };
@@ -20,6 +20,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mode, setMode] = useState('voice');
   const [joystickDirection, setJoystickDirection] = useState('neutral');
+  const [attackState, setAttackState] = useState('idle');
+  const attackBusy = useRef(false);
+  const attackTimer = useRef(null);
   const [phase, setPhase] = useState('ready');
   const [draft, setDraft] = useState('');
   const [typing, setTyping] = useState(false);
@@ -64,6 +67,7 @@ export default function App() {
   }, []);
 
   const selectDirection = useCallback(value => {
+    if (value !== 'neutral' && attackBusy.current) return;
     setJoystickDirection(value);
     setSendError('');
     vehicle.current?.move(value).catch(error => {
@@ -71,10 +75,33 @@ export default function App() {
     });
   }, []);
 
+  async function attack() {
+    if (!online || modeRef.current !== 'joystick' || attackBusy.current) return;
+    attackBusy.current = true;
+    setAttackState('sending');
+    setJoystickDirection('neutral');
+    setSendError('');
+    try {
+      const packet = await vehicle.current.attack();
+      if (!mounted.current) return;
+      if (packet) {
+        setAttackState('submitted');
+        attackTimer.current = setTimeout(() => {
+          attackBusy.current = false;
+          setAttackState('idle');
+        }, ATTACK_RECOVERY_MS);
+        return;
+      }
+    } catch (error) { if (mounted.current) setSendError(error.message); }
+    attackBusy.current = false;
+    if (mounted.current) setAttackState('idle');
+  }
+
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      clearTimeout(attackTimer.current);
       sendGeneration.current += 1;
       connectionGeneration.current += 1;
       vehicle.current?.dispose();
@@ -337,6 +364,7 @@ export default function App() {
         <button type="button" className="icon-button connection-settings" onClick={openSettings} aria-label="เปิดการตั้งค่า" ref={settingsButton}><Icon name="ready-IconSettings" size={18} /></button>
       </div>
       {mode === 'joystick' ? <Joystick key={connection} direction={joystickDirection} onDirectionChange={selectDirection}
+        onAttack={attack} attackState={attackState}
         unavailable={!online} reconnecting={connection === 'connecting'} error={sendError} /> : <main id="voice-panel" role="tabpanel" aria-labelledby="voice-tab" className={`main-content phase-${phase}`}>
         <div className="instruction" aria-live="polite">
           <h1>{heading}</h1>

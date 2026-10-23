@@ -9,12 +9,15 @@ const artwork = Object.fromEntries(
 );
 const KEY_DIRECTIONS = { ArrowUp: 'forward', ArrowDown: 'backward', ArrowLeft: 'left', ArrowRight: 'right', Escape: 'neutral', Home: 'neutral' };
 
-export default function Joystick({ direction, onDirectionChange, unavailable, reconnecting, error }) {
+export default function Joystick({ direction, onDirectionChange, onAttack, attackState = 'idle', unavailable, reconnecting, error }) {
   const pointer = useRef(null);
   const directionRef = useRef(direction);
   directionRef.current = direction;
   const pad = useRef(null);
   const selected = unavailable ? 'neutral' : direction;
+  const attacking = attackState !== 'idle';
+
+  useEffect(() => { if (attacking) pointer.current = null; }, [attacking]);
 
   useEffect(() => {
     function reset() {
@@ -35,7 +38,7 @@ export default function Joystick({ direction, onDirectionChange, unavailable, re
   }, [onDirectionChange]);
 
   function choose(value, force = false) {
-    if (unavailable || (!force && value === directionRef.current)) return;
+    if (unavailable || (attacking && value !== 'neutral') || (!force && value === directionRef.current)) return;
     directionRef.current = value;
     onDirectionChange(value);
   }
@@ -71,7 +74,7 @@ export default function Joystick({ direction, onDirectionChange, unavailable, re
     <div className={`joystick-command ${unavailable ? 'is-unavailable' : selected !== 'neutral' ? 'is-moving' : ''}`}>
       <p className="small muted">{unavailable ? (reconnecting ? 'กำลังเชื่อมต่อ' : 'ขาดการเชื่อมต่อ') : 'คำสั่งที่เลือก'}</p>
       <p className="joystick-command-label" role="status" aria-live="polite" aria-atomic="true">
-        {unavailable ? 'หยุด · รอเชื่อมต่อใหม่' : JOYSTICK_LABELS[selected]}
+        {unavailable ? 'หยุด · รอเชื่อมต่อใหม่' : attackState === 'sending' ? 'กำลังส่งโจมตี…' : attackState === 'submitted' ? 'ส่งคำสั่งโจมตีแล้ว' : JOYSTICK_LABELS[selected]}
       </p>
       {error && <p className="notice" role="alert">{error}</p>}
     </div>
@@ -89,14 +92,14 @@ export default function Joystick({ direction, onDirectionChange, unavailable, re
       {Object.entries(artwork).map(([state, src]) => <img key={state} src={src} width="351" height="351" alt="" aria-hidden="true" draggable="false"
         className={`joystick-art ${state === (unavailable ? 'offline' : selected) ? 'is-visible' : ''}`} />)}
       {Object.entries(JOYSTICK_LABELS).map(([state, label]) => <button key={state} type="button" className={`joystick-hit hit-${state}`}
-        aria-label={state === 'neutral' ? 'หยุด · กลับกลางจอย' : label} aria-pressed={selected === state} disabled={unavailable}
+        aria-label={state === 'neutral' ? 'หยุด · กลับกลางจอย' : label} aria-pressed={selected === state} disabled={unavailable || (attacking && state !== 'neutral')}
         onClick={event => {
           // Pointer gestures are handled by the pad; clicks from keyboard/AT select a button.
           if (event.detail === 0) choose(state, true);
         }} />)}
     </div>
-    <div className="combat-actions" role="group" aria-label="โจมตีและป้องกัน — ยังไม่รองรับการสั่งจากจอย">
-      <button type="button" className="combat-button attack" disabled title="รถยังไม่รองรับคำสั่งโจมตีจากจอย">
+    <div className="combat-actions" role="group" aria-label="โจมตีและป้องกัน">
+      <button type="button" className="combat-button attack" disabled={unavailable || attacking} onClick={onAttack} aria-busy={attacking}>
         <Icon name="combat-IconAttack" size={22} />โจมตี
       </button>
       <button type="button" className="combat-button defense" disabled title="รถยังไม่รองรับคำสั่งป้องกันจากจอย">

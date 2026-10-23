@@ -1,4 +1,4 @@
-import { CONTROL_TIMEOUT_MS, HEARTBEAT_MS } from './commands.js';
+import { CONTROL_TIMEOUT_MS, HEARTBEAT_MS, ATTACK_RECOVERY_MS } from './commands.js';
 
 const ACTIONS = { forward: 'FORWARD', backward: 'BACKWARD', left: 'TURN_LEFT', right: 'TURN_RIGHT' };
 
@@ -12,6 +12,8 @@ export function createVehicleControl(transport, onFailure, {
 } = {}) {
   let current = null;
   let timer = null;
+  let attackPending = false;
+  let attackReadyAt = 0;
 
   function clearTimer() { if (timer !== null) cancel(timer); timer = null; }
 
@@ -61,12 +63,34 @@ export function createVehicleControl(transport, onFailure, {
     async setMode(mode) { await activate(mode); },
     async move(direction) {
       if (direction === 'neutral') return stop(true);
+      if (attackPending || now() < attackReadyAt) throw new Error('รอรอบโจมตีก่อนเลือกทิศทางใหม่');
       const action = ACTIONS[direction];
       if (!action) throw new Error('ทิศทางไม่ถูกต้อง');
       const record = await activate('joystick');
       if (!record || current !== record) return;
       refresh(record, action);
       if (current === record) timer = schedule(() => refresh(record, action), HEARTBEAT_MS);
+    },
+    async attack() {
+      if (attackPending || now() < attackReadyAt) return false;
+      attackPending = true;
+      let record;
+      try {
+        // Retire motion (including pending claims) before the one-shot action.
+        // A new claim also works when the old centered session has expired.
+        record = await activate('joystick');
+        if (!record || current !== record) return false;
+        const packet = { type: 'joystick', source: 'web', session: record.session,
+          seq: ++record.seq, action: 'ATTACK', duration: CONTROL_TIMEOUT_MS };
+        await transport.sendCommand(packet);
+        if (current !== record) return false;
+        attackReadyAt = now() + ATTACK_RECOVERY_MS;
+        // Do not heartbeat ATTACK or automatically restore the previous direction.
+        return packet;
+      } catch (error) {
+        if (record) fail(record, error);
+        throw error;
+      } finally { attackPending = false; }
     },
     async sendVoice(text, confidence) {
       const record = await activate('voice');

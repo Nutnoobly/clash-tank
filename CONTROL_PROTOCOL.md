@@ -41,7 +41,33 @@ Python preserves the request's session and sequence independently of model outpu
 {"type":"voice","source":"voice","session":"example-B","seq":1,"commands":[{"action":"FORWARD","duration":1000}]}
 ```
 
-Only one voice result is accepted for the active voice session. Neither voice packets in joystick mode nor results from an older session can start the motor queue. Motor-supported actions remain `FORWARD`, `BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `SPIN`, `STOP`; the Python schema still omits `SPIN`. Buzzer-only effects are handled by the ESP32, not the UNO motor queue. Mixed batches containing motor-unsupported actions remain rejected by the UNO.
+Only one voice result is accepted for the active voice session. Neither voice packets in joystick mode nor results from an older session can start the motor queue. UNO-supported actions are `FORWARD`, `BACKWARD`, `TURN_LEFT`, `TURN_RIGHT`, `SPIN`, `STOP`, `ATTACK`; the Python schema still omits `SPIN`. Buzzer-only effects are handled by the ESP32, not the UNO motor queue. Mixed batches containing motor-unsupported actions remain rejected by the UNO.
+
+## Servo attack (UNO R4 WiFi)
+
+Connect the attack servo signal to pin 11. The sketch attaches `myServo` and initializes it to 90 degrees in `setup()`. Pin 11 does not overlap the existing motor pins or I2C LCD pins.
+
+ATTACK uses the existing voice session and sequence checks. Publish a fresh claim to `command_out`, then the matching voice result (replace the example session with a fresh ID each time):
+
+```json
+{"type":"control","source":"web","session":"attack-example-A","mode":"voice"}
+{"type":"voice","source":"voice","session":"attack-example-A","seq":1,"commands":[{"action":"ATTACK","duration":1000}]}
+```
+
+The topic is `n8q4x2m7v9p3k6t1r5z0/command_out`. Use QoS 0 and no retain. The two JSON objects above are separate MQTT messages. Python already allows ATTACK; no new packet type is required. Bare `{"action":"ATTACK"}` packets are rejected by design.
+
+The UNO also accepts ATTACK from a claimed joystick session, using the same monotonically increasing sequence and exact 500 ms duration as movement packets:
+
+```json
+{"type":"control","source":"web","session":"joy-attack-A","mode":"joystick"}
+{"type":"joystick","source":"web","session":"joy-attack-A","seq":1,"action":"ATTACK","duration":500}
+```
+
+Send these as separate messages. An active joystick session can use its ID and next sequence; the web attack button deliberately claims a fresh session to retire pending movement and then sends ATTACK once, without a heartbeat. An accepted attack stops the motors and queues one cycle outside the MQTT callback. Duplicate/older sequences are ignored; newer ATTACK refreshes received while the cycle is pending do not queue additional cycles. After a joystick attack finishes, the UNO invalidates the session because the blocking cycle exceeds the 500 ms lease. Further movement or attack requires a fresh claim with a new session ID; buffered packets from the previous session cannot resume the motors or repeat the attack. The web centers the joystick and waits 2500 ms after submission before allowing another attack or direction. This is a local recovery delay, not acknowledgement of execution; the operator must select a new direction explicitly.
+
+Each queued ATTACK stops the motors and runs exactly one cycle: 91 through 180 degrees at 10 ms per step, pause 200 ms, 179 through 90 degrees at 10 ms per step, pause 200 ms. It returns to 90 degrees after approximately 2200 ms. For voice packets, the required positive `duration` field is still validated (1–60000 ms) for protocol compatibility, but does not change the attack cycle or add a hold. Consecutive voice attacks each execute once, and the queue advances after each cycle.
+
+The cycle runs in the main loop, outside the MQTT callback. The supplied blocking delays mean MQTT messages (including STOP and new session claims), disconnect detection and status updates wait until the cycle finishes. A STOP received before execution clears the queued attack. ESP32 ignores ATTACK and continues handling DEFENSE; mixed batches containing DEFENSE remain rejected as a whole by the UNO.
 
 ## Timing and limits
 

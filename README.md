@@ -18,7 +18,7 @@ Settings and the last three submitted messages stay in browser-local storage; pa
 
 The controller opens in **เสียง** (voice) mode. After automatic connection, select **จอย** in the header. Tap or drag to select forward, backward, rotate left, or rotate right. Releasing keeps that direction selected; tap or drag into the center to stop. Arrow keys also select directions; Escape or Home returns to center.
 
-Microphone, language/mode switches, and joystick use the approved dark neumorphic Figma design. Attack and defense buttons appear below the joystick but remain disabled: the direct-control protocol does not yet support these actions alongside a latched movement session.
+Microphone, language/mode switches, and joystick use the approved dark neumorphic Figma design. **โจมตี** sends one direct `ATTACK` packet after claiming a fresh joystick session, cancels movement heartbeats, and centers the joystick. The browser waits 2.5 seconds before accepting another attack or direction, allowing for the UNO's approximately 2.2-second blocking servo cycle. Submission is not hardware acknowledgement. Movement never resumes automatically; select a new direction afterward. The UNO must have the firmware supporting joystick `ATTACK` uploaded. **ป้องกัน** remains disabled because the ESP32 does not yet accept direct joystick defense packets.
 
 Joystick commands publish directly to `n8q4x2m7v9p3k6t1r5z0/command_out`, bypassing Python/LLM. Motion refreshes every 150 ms with a fixed 500 ms lease. The UNO stops and invalidates the joystick session when its lease expires. Refreshing the same direction does not stop/restart the motors. Switching modes, opening settings, hiding the page, losing focus in joystick mode, or disconnecting cancels the heartbeat and attempts STOP. Reconnecting always starts centered and requires a new selection. A frozen browser timer also disarms instead of resuming automatically.
 
@@ -69,7 +69,7 @@ The backend rejects retained, untagged, stale, low-confidence, and empty request
 
 ### Physical boards
 
-- **UNO R4 WiFi:** `clash-tank/clashtank.ino` plus `clash-tank/ControlSession.h`. Uses `WiFiS3`, `PubSubClient`, ArduinoJson 7, and `LiquidCrystal_I2C`.
+- **UNO R4 WiFi:** `clash-tank/clashtank/clashtank.ino` plus its adjacent `ControlSession.h`. Uses `WiFiS3`, `PubSubClient`, ArduinoJson 7, `LiquidCrystal_I2C`, and `Servo` (tested with 1.3.0). The attack servo signal connects to pin 11.
 - **ESP32 buzzer:** `clash-tank/esp32buzzer-clashtank.ino` plus the same header. Uses ESP32 Arduino Core 3.x, `PubSubClient`, and ArduinoJson 7. It ignores joystick refreshes and gates voice effects by session.
 - Put each board's `.ino` in its **own sketch directory**, with the same name as that directory, and copy `ControlSession.h` next to it. Do not compile both board sketches together from `clash-tank/`.
 - Configure Wi-Fi/broker settings in the selected sketch before uploading. Existing motor pin assignments and speeds are preserved; verify wiring before energizing motors. ENA=2 and ENB=7 are not the PWM pins listed in the sketch's UNO R4 comment, so do not assume variable-speed PWM without checking the wiring/pin selection.

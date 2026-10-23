@@ -89,6 +89,19 @@ test('direct packets use command_out without retain and voice metadata stays on 
   f.transport.close();
 });
 
+test('joystick ATTACK uses command_out with a session, sequence and exact lease', async () => {
+  const f = fixture(); f.connect();
+  const packet = { type: 'joystick', source: 'web', session: 'attack-session', seq: 1, action: 'ATTACK', duration: 500 };
+  await f.transport.sendCommand(packet);
+  assert.deepEqual(f.clients[0].published[0].payload, packet);
+  assert.ok(f.clients[0].published[0].topic.endsWith('/command_out'));
+  assert.deepEqual(f.clients[0].published[0].options, { qos: 0, retain: false });
+  await assert.rejects(f.transport.sendCommand({ ...packet, duration: 2200 }));
+  await assert.rejects(f.transport.sendCommand({ action: 'ATTACK' }));
+  await assert.rejects(f.transport.sendCommand({ ...packet, action: 'DEFENSE' }));
+  f.transport.close();
+});
+
 test('connection loss rejects an in-flight publish and does not record a later callback as success', async () => {
   const f = fixture(); f.connect();
   f.clients[0].holdPublish = true;

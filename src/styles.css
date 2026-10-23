@@ -150,6 +150,8 @@ input::placeholder, textarea::placeholder { color: var(--ct-muted); opacity: 1; 
 .combat-actions { display: flex; gap: 12px; flex-shrink: 0; }
 .combat-button { display: flex; flex: 1; align-items: center; justify-content: center; gap: 8px; min-height: 64px; padding: 12px; border: 0; border-radius: var(--ct-radius); color: var(--ct-white); background: var(--ct-controller); box-shadow: var(--ct-raised); font-size: 15px; font-weight: 500; line-height: 24px; }
 .combat-button.attack { color: var(--ct-orange); }
+.combat-button.attack:not(:disabled):active { background: var(--ct-orange); color: var(--ct-black); box-shadow: var(--ct-inset); }
+.combat-button.attack[aria-busy="true"] { opacity: 1; background: var(--ct-orange-dim); box-shadow: var(--ct-inset); }
 .combat-button:disabled { opacity: .35; }
 .connection-dialog { width: min(294px, calc(100vw - 48px)); margin: auto; padding: 28px 24px; border: 1px solid var(--ct-border); border-radius: 20px; color: var(--ct-white); background: var(--ct-controller); text-align: center; }
 .connection-dialog[open] { display: flex; flex-direction: column; align-items: center; gap: 20px; }
