@@ -7,6 +7,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Servo.h>
 #include "ControlSession.h"
+#include "ProximityTrigger.h"
 
 // PWM pins on UNO R4: 3, 5, 6, 9, 10, 11
 const int ENA = 2;
@@ -17,6 +18,8 @@ const int IN3 = 5;
 const int IN4 = 6;
 const int ATTACK_SERVO_PIN = 11;
 Servo myServo;
+const int IR_SENSOR_PIN = A0;  // Digital sensor output: LOW means nearby object.
+ProximityTrigger irTrigger;
 
 const int DEFAULT_SPEED = 255;
 const int MAX_COMMANDS = 10;
@@ -78,6 +81,8 @@ void turnLeft(int speed);
 void turnRight(int speed);
 void executeAction(String action);
 void attack_func();
+void pollIRHit();
+void attackDelay(unsigned long duration);
 void startNextCommand();
 void callback(char* receivedTopic, byte* payload,
               unsigned int length);
@@ -109,7 +114,8 @@ bool validAction(String action) {
          action == "TURN_RIGHT" ||
          action == "SPIN" ||
          action == "ATTACK" ||
-         action == "STOP";
+         action == "STOP" ||
+         action == "DEFENSE";
 }
 
 void setup() {
@@ -127,6 +133,7 @@ void setup() {
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);
   pinMode(IN4, OUTPUT);
+  pinMode(IR_SENSOR_PIN, INPUT_PULLUP);
 
   stopCar();
 
@@ -172,6 +179,7 @@ void setup() {
 }
 
 void loop() {
+  pollIRHit();
   unsigned long now = millis();
   if (controlSession.expire(now)) {
     stopAll();
@@ -315,6 +323,9 @@ void callback(char* receivedTopic, byte* payload,
   const char* type = doc["type"] | "";
   const char* source = doc["source"] | "";
   const char* session = doc["session"] | "";
+  // This board subscribes to the same topic it publishes sensor events on.
+  if (strcmp(type, "event") == 0 && strcmp(source, "uno") == 0 &&
+      strcmp(doc["action"] | "", "Being_Attacked") == 0) return;
 
   // Untagged motion is rejected; a legacy bare STOP remains safe to accept.
   if (!doc["type"].is<const char*>() && strcmp(doc["action"] | "", "STOP") == 0) {
@@ -454,20 +465,37 @@ void startNextCommand() {
   );
 }
 
+void pollIRHit() {
+  if (!irTrigger.update(digitalRead(IR_SENSOR_PIN) == LOW, millis())) return;
+  // Consume offline detections without replaying an old hit after reconnect.
+  if (!wifiConnected() || !client.connected()) return;
+  const char* message = "{\"type\":\"event\",\"source\":\"uno\",\"action\":\"Being_Attacked\"}";
+  if (client.publish(topic, message, false)) logMessage("IR hit: Being_Attacked sent");
+  else logMessage("IR hit: MQTT publish failed");
+}
+
+void attackDelay(unsigned long duration) {
+  const unsigned long startedAt = millis();
+  while (millis() - startedAt < duration) {
+    pollIRHit();
+    delay(1);
+  }
+}
+
 void attack_func() {
   for (int angle = 91; angle <= 180; angle++) {
     myServo.write(angle);
-    delay(10);
+    attackDelay(10);
   }
 
-  delay(200);
+  attackDelay(200);
 
   for (int angle = 179; angle >= 90; angle--) {
     myServo.write(angle);
-    delay(10);
+    attackDelay(10);
   }
 
-  delay(200);
+  attackDelay(200);
 }
 
 void executeAction(String action) {

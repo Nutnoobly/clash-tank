@@ -80,14 +80,28 @@ The web defense button claims a fresh joystick session and sends the following a
 
 The claim cancels existing movement. The browser centers the joystick, sends DEFENSE once without a heartbeat, and shows submission feedback for 350 ms. It never resumes motion automatically. `duration:500` is the joystick envelope lease, not the buzzer playback time.
 
-The ESP32 accepts root `action:"DEFENSE"` with `type:"joystick", source:"web"`, and DEFENSE entries in the existing voice `commands` array. Both play the existing frequency sweep for a fixed 5000 ms, ignoring any supplied `duration` (including a missing duration). Multiple DEFENSE entries in the same batch queue only one cycle. The buzzer is switched off afterward. The firmware still uses a blocking playback loop, so MQTT messages, including STOP, are processed after playback finishes. This change does not add session validation or execution acknowledgements to the latest ESP32 sketch.
+The ESP32 accepts root `action:"DEFENSE"` with `type:"joystick", source:"web"`, and DEFENSE entries in the existing voice `commands` array. Both play the frequency sweep for a fixed 5000 ms, ignoring any supplied `duration` (including a missing duration). Additional defense requests while a sound is active are ignored. The buzzer is switched off afterward. Playback uses a non-blocking timer so MQTT remains serviced. Session validation and execution acknowledgements are not added to the latest ESP32 sketch.
+
+## IR hit notification: UNO A0 to ESP32
+
+Connect the sensor's active-low digital output to UNO **A0**. A0 uses `INPUT_PULLUP`; LOW stable for 30 ms means an object is nearby. The UNO publishes one message on `n8q4x2m7v9p3k6t1r5z0/command_out`, QoS 0 and no retain:
+
+```json
+{"type":"event","source":"uno","action":"Being_Attacked"}
+```
+
+Keeping the object in place does not publish repeatedly. HIGH must be stable for 30 ms before the next LOW can trigger again. Detections while offline, or failed publishes, are not queued for replay. The sensor is also polled during the servo attack delays. Network calls and other existing synchronous work can still delay polling; this is not an interrupt-based detector.
+
+ESP32 alone drives the buzzer on GPIO 23. A valid UNO `Being_Attacked` event plays a 2500 Hz tone for **1000 ms**, then switches off. Hit sound takes priority over defense: it cancels the remaining defense sweep, which is not resumed. Further hits while a hit tone is active do not extend its duration or queue additional sounds. The PWM waveform uses 50% duty (128 of 255). Hardware volume depends on the buzzer and its driver. The event does not change UNO motor ownership or commands; UNO ignores its own echoed hit event.
+
+Keep `ProximityTrigger.h` beside the UNO sketch and `BuzzerEffects.h` beside the ESP32 sketch when copying them into separate Arduino sketch folders. Upload both updated sketches. Host integration checks (no hardware required): `python tests/run_esp32_defense_tests.py --arduinojson <ArduinoJson-library-directory>`.
 
 ## Timing and limits
 
 - The browser clears its interval and attempts STOP on center, mode/settings changes, hidden/pagehide, focus loss in joystick mode, disconnect, or publish failure. It refuses to resume a heartbeat after an event-loop gap of 500 ms or longer.
 - Direct publish callbacks time out after 300 ms. A callback confirms local transport submission, not board receipt. There is no command acknowledgement or vehicle status stream. A network path stalled downstream of the browser can expire the board lease while the UI remains latched; select center and explicitly reselect a direction to claim a fresh session.
 - The 500 ms firmware deadline is a cooperative loop check, not a hard real-time guarantee. WiFiS3/PubSubClient calls can block; socket read timeout is reduced to 1 second. LCD and periodic Serial updates are skipped while driving manually. Measure real stopping latency on hardware before relying on a particular bound.
-- The short lease is for joystick motion. Voice queues retain timed actions and rely on direct STOP or board disconnect detection if the browser disappears. Existing ESP32 sound playback is blocking and is not interrupted mid-sweep.
+- The short lease is for joystick motion. Voice queues retain timed actions and rely on direct STOP or board disconnect detection if the browser disappears. ESP32 sound playback is non-blocking; existing Wi-Fi/MQTT connection calls can still delay loop timing. Reconnect backoff waits continue updating the buzzer.
 - This protocol assumes one operator. Session and sequence metadata are not authentication. Legacy untagged movement is rejected; bare STOP remains compatible. Update web, Python, and board sketches together.
 
 ## Hardware validation

@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include "BuzzerEffects.h"
 
 // ========== WiFi ==========
 const char* ssid = "iPhone";
@@ -13,84 +14,42 @@ const char* topic = "n8q4x2m7v9p3k6t1r5z0/command_out";
 
 // ========== Buzzer ==========
 const int BUZZER_PIN = 23;
-const int DUTY = 255;  // 8-bit duty: 0-255
+const int DUTY = 128;  // 50% waveform; 255 holds the pin high instead of a tone.
 
 // ========== MQTT Objects ==========
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// ========== Defense State ==========
-bool defenseRequested = false;
-bool defenseRunning = false;
+BuzzerEffects buzzerEffects;
 
-const unsigned long DEFENSE_DURATION_MS = 5000;
-
-// --------------------------------------------------
-// Play DEFENSE sound for a fixed five seconds, regardless of MQTT duration.
-// --------------------------------------------------
-
-void playDefenseSound() {
-  defenseRunning = true;
-
-  Serial.println();
-  Serial.println("========== DEFENSE ==========");
-  Serial.print("Duration: ");
-  Serial.print(DEFENSE_DURATION_MS);
-  Serial.println(" ms");
-
-  unsigned long startTime = millis();
-
-  int hz = 0;
-  int direction = 100;
-
-  while (millis() - startTime < DEFENSE_DURATION_MS) {
-
-    if (hz <= 0) {
-      hz = 0;
-      ledcWrite(BUZZER_PIN, 0);  // Silence at 0 Hz
-    } else {
-      ledcWriteTone(BUZZER_PIN, hz);
-      ledcWrite(BUZZER_PIN, DUTY);
-    }
-
-    Serial.print("Frequency: ");
-    Serial.print(hz);
-    Serial.println(" Hz");
-
-    delay(10);  // Faster frequency sweep
-
-    hz += direction;
-
-    if (hz >= 5000) {
-      hz = 5000;
-      direction = -100;
-    } else if (hz <= 0) {
-      hz = 0;
-      direction = 100;
-    }
+void updateBuzzer() {
+  static int lastFrequency = -1;
+  const int hz = buzzerEffects.frequency(millis());
+  if (hz == lastFrequency) return;
+  lastFrequency = hz;
+  if (hz > 0) {
+    ledcWriteTone(BUZZER_PIN, hz);
+    ledcWrite(BUZZER_PIN, DUTY);
+  } else {
+    ledcWrite(BUZZER_PIN, 0);
+    ledcWriteTone(BUZZER_PIN, 0);
   }
-
-  ledcWrite(BUZZER_PIN, 0);
-  ledcWriteTone(BUZZER_PIN, 0);
-
-  Serial.println("Buzzer OFF");
-  Serial.println("Defense sound completed.");
-  Serial.println("=============================");
-
-  defenseRunning = false;
 }
 
-
-// --------------------------------------------------
-// MQTT callback
-// --------------------------------------------------
 void requestDefense() {
-  if (!defenseRunning && !defenseRequested) {
-    defenseRequested = true;
-    Serial.println("DEFENSE queued: fixed 5000 ms.");
-  } else {
-    Serial.println("DEFENSE already running/queued.");
+  if (buzzerEffects.defense(millis())) Serial.println("DEFENSE: fixed 5000 ms");
+}
+
+void waitWithBuzzer(unsigned long duration) {
+  const unsigned long startedAt = millis();
+  while (millis() - startedAt < duration) {
+    updateBuzzer();
+    delay(1);
   }
+}
+
+void requestHitSound() {
+  if (buzzerEffects.hit(millis())) Serial.println("Being_Attacked: fixed 1000 ms");
 }
 
 void callback(char* receivedTopic, byte* payload, unsigned int length) {
@@ -119,6 +78,13 @@ void callback(char* receivedTopic, byte* payload, unsigned int length) {
   if (error) {
     Serial.print("JSON parse failed: ");
     Serial.println(error.c_str());
+    return;
+  }
+
+  if (strcmp(doc["type"] | "", "event") == 0 &&
+      strcmp(doc["source"] | "", "uno") == 0 &&
+      strcmp(doc["action"] | "", "Being_Attacked") == 0) {
+    requestHitSound();
     return;
   }
 
@@ -182,7 +148,7 @@ void setupWiFi() {
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    waitWithBuzzer(500);
     Serial.print(".");
   }
 
@@ -216,7 +182,7 @@ void reconnectMQTT() {
       Serial.print("Failed, MQTT state = ");
       Serial.println(client.state());
 
-      delay(2000);
+      waitWithBuzzer(2000);
     }
   }
 }
@@ -239,6 +205,7 @@ void setup() {
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
   client.setBufferSize(1024);
+  client.setSocketTimeout(1);
 
   Serial.println();
   Serial.println("ESP32 MQTT Buzzer Ready");
@@ -250,6 +217,7 @@ void setup() {
 // Main loop
 // --------------------------------------------------
 void loop() {
+  updateBuzzer();
   if (WiFi.status() != WL_CONNECTED) {
     setupWiFi();
   }
@@ -260,9 +228,5 @@ void loop() {
 
   client.loop();
 
-  // Play one fixed five-second cycle for either voice or joystick defense.
-  if (defenseRequested && !defenseRunning) {
-    defenseRequested = false;
-    playDefenseSound();
-  }
+  updateBuzzer();
 }
