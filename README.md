@@ -6,15 +6,19 @@ Thai/English voice and joystick tank controller using React, MQTT, a Python/Olla
 
 ## Use the controller
 
-1. Open the website on your phone and allow microphone access, or use text entry.
-2. In **Settings**, configure the broker WSS URL, credentials if required, voice topic, and command topic. The default broker is `wss://broker.hivemq.com:8884/mqtt`. Python and both boards must use the same broker and matching topics.
-3. Save and connect, select Thai or English, speak, review/edit the transcript, then send.
+1. Open the website on your phone. It connects automatically using saved settings; the default broker is `wss://broker.hivemq.com:8884/mqtt`.
+2. The dark “กำลังเชื่อมต่อ” modal blocks touch and keyboard controls until MQTT connects. Failed or lost connections retry after 2.5 seconds; returning online triggers an immediate attempt. Reconnecting never replays motion commands.
+3. Select Thai or English and tap the microphone. A completed utterance sends automatically; low-confidence speech requires editing or repeating. Tap **พิมพ์คำสั่ง** for text entry, then **ส่งคำสั่ง**.
+
+While connected, **Settings** lets you save a different broker WSS URL, credentials, voice topic, and command topic. Python and both boards must use the same broker and matching topics.
 
 Settings and the last three submitted messages stay in browser-local storage; passwords stay in memory only. Offline messages are not queued. **ส่งแล้ว** means submitted, not executed by the vehicle.
 
 ### Direct joystick control
 
-The controller opens in **เสียง** (voice) mode. Connect to MQTT, then select **จอย** in the header. Tap or drag to select forward, backward, rotate left, or rotate right. Releasing keeps that direction selected; tap or drag into the center to stop. Arrow keys also select directions; Escape or Home returns to center.
+The controller opens in **เสียง** (voice) mode. After automatic connection, select **จอย** in the header. Tap or drag to select forward, backward, rotate left, or rotate right. Releasing keeps that direction selected; tap or drag into the center to stop. Arrow keys also select directions; Escape or Home returns to center.
+
+Microphone, language/mode switches, and joystick use the approved dark neumorphic Figma design. Attack and defense buttons appear below the joystick but remain disabled: the direct-control protocol does not yet support these actions alongside a latched movement session.
 
 Joystick commands publish directly to `n8q4x2m7v9p3k6t1r5z0/command_out`, bypassing Python/LLM. Motion refreshes every 150 ms with a fixed 500 ms lease. The UNO stops and invalidates the joystick session when its lease expires. Refreshing the same direction does not stop/restart the motors. Switching modes, opening settings, hiding the page, losing focus in joystick mode, or disconnecting cancels the heartbeat and attempts STOP. Reconnecting always starts centered and requires a new selection. A frozen browser timer also disarms instead of resuming automatically.
 

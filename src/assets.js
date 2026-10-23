@@ -1,4 +1,8 @@
 export const assets = {
+  'neumorphic-IconMic': new URL('./assets/icons/neumorphic-IconMic.svg', import.meta.url).href,
+  'combat-IconAttack': new URL('./assets/icons/combat-IconAttack.svg', import.meta.url).href,
+  'combat-IconDefense': new URL('./assets/icons/combat-IconDefense.svg', import.meta.url).href,
+  'connection-progress': new URL('./assets/icons/connection-progress.svg', import.meta.url).href,
   'ready-IconSettings': new URL('./assets/icons/ready-IconSettings.svg', import.meta.url).href,
   'ready-Ellipse': new URL('./assets/icons/ready-Ellipse.svg', import.meta.url).href,
   'ready-IconMic': new URL('./assets/icons/ready-IconMic.svg', import.meta.url).href,

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { directionAt, JOYSTICK_LABELS } from '../lib/joystick.js';
+import Icon from './Icon.jsx';
 
 const artwork = Object.fromEntries(
   ['neutral', 'forward', 'left', 'right', 'backward', 'offline'].map(state => [
@@ -8,7 +9,7 @@ const artwork = Object.fromEntries(
 );
 const KEY_DIRECTIONS = { ArrowUp: 'forward', ArrowDown: 'backward', ArrowLeft: 'left', ArrowRight: 'right', Escape: 'neutral', Home: 'neutral' };
 
-export default function Joystick({ direction, onDirectionChange, unavailable, reconnecting, onReconnect, error }) {
+export default function Joystick({ direction, onDirectionChange, unavailable, reconnecting, error }) {
   const pointer = useRef(null);
   const directionRef = useRef(direction);
   directionRef.current = direction;
@@ -66,18 +67,16 @@ export default function Joystick({ direction, onDirectionChange, unavailable, re
   return <main id="joystick-panel" role="tabpanel" aria-labelledby="joystick-tab" className="joystick-content">
     <div className="instruction">
       <h1>ควบคุมด้วยจอย</h1>
-      <p className="small muted">แตะหรือลากเพื่อเลือกทิศทาง</p>
     </div>
     <div className={`joystick-command ${unavailable ? 'is-unavailable' : selected !== 'neutral' ? 'is-moving' : ''}`}>
       <p className="small muted">{unavailable ? (reconnecting ? 'กำลังเชื่อมต่อ' : 'ขาดการเชื่อมต่อ') : 'คำสั่งที่เลือก'}</p>
       <p className="joystick-command-label" role="status" aria-live="polite" aria-atomic="true">
         {unavailable ? 'หยุด · รอเชื่อมต่อใหม่' : JOYSTICK_LABELS[selected]}
       </p>
-      <p className="small muted joystick-preview">ส่งตรงผ่าน MQTT · ยังไม่มีสถานะยืนยันจากรถ</p>
       {error && <p className="notice" role="alert">{error}</p>}
     </div>
     <div className="joystick-reach-space" />
-    <div className="joystick-pad" ref={pad} role="group" aria-label="จอยเลือกทิศทาง" aria-describedby="joystick-hint"
+    <div className="joystick-pad" ref={pad} role="group" aria-label="จอยเลือกทิศทาง"
       onPointerDown={begin}
       onPointerMove={event => { if (!unavailable && pointer.current === event.pointerId) chooseAt(event); }}
       onPointerUp={release} onPointerCancel={cancel} onLostPointerCapture={cancel}
@@ -87,7 +86,7 @@ export default function Joystick({ direction, onDirectionChange, unavailable, re
           choose(KEY_DIRECTIONS[event.key], true);
         }
       }}>
-      {Object.entries(artwork).map(([state, src]) => <img key={state} src={src} width="352" height="352" alt="" aria-hidden="true" draggable="false"
+      {Object.entries(artwork).map(([state, src]) => <img key={state} src={src} width="351" height="351" alt="" aria-hidden="true" draggable="false"
         className={`joystick-art ${state === (unavailable ? 'offline' : selected) ? 'is-visible' : ''}`} />)}
       {Object.entries(JOYSTICK_LABELS).map(([state, label]) => <button key={state} type="button" className={`joystick-hit hit-${state}`}
         aria-label={state === 'neutral' ? 'หยุด · กลับกลางจอย' : label} aria-pressed={selected === state} disabled={unavailable}
@@ -96,15 +95,13 @@ export default function Joystick({ direction, onDirectionChange, unavailable, re
           if (event.detail === 0) choose(state, true);
         }} />)}
     </div>
-    <div id="joystick-hint" className="joystick-hint">
-      {unavailable ? <>
-        <button type="button" className="button secondary" onClick={onReconnect} disabled={reconnecting}>{reconnecting ? 'กำลังเชื่อมต่อ…' : 'เชื่อมต่อใหม่'}</button>
-        <p className="small muted">เชื่อมต่อแล้วเลือกทิศทางใหม่</p>
-      </> : <>
-        <p>แตะกลางเพื่อหยุด</p>
-        <p className="small muted">ปล่อยนิ้วแล้วจอยจะค้างตำแหน่งเดิม</p>
-        <p className="small muted">ซ้าย / ขวา คือหมุนอยู่กับที่</p>
-      </>}
+    <div className="combat-actions" role="group" aria-label="โจมตีและป้องกัน — ยังไม่รองรับการสั่งจากจอย">
+      <button type="button" className="combat-button attack" disabled title="รถยังไม่รองรับคำสั่งโจมตีจากจอย">
+        <Icon name="combat-IconAttack" size={22} />โจมตี
+      </button>
+      <button type="button" className="combat-button defense" disabled title="รถยังไม่รองรับคำสั่งป้องกันจากจอย">
+        <Icon name="combat-IconDefense" size={22} />ป้องกัน
+      </button>
     </div>
   </main>;
 }

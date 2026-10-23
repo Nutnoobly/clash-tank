@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { validateSettings } from '../lib/commands.js';
 
-export default function Settings({ settings, connection, onConnect, onDisconnect, onClose }) {
+export default function Settings({ settings, connection, onConnect, onClose }) {
   const [form, setForm] = useState(settings);
   const [errors, setErrors] = useState({});
   const formRef = useRef(null);
@@ -52,10 +52,9 @@ export default function Settings({ settings, connection, onConnect, onDisconnect
         <p className="small muted">ใช้ URL และ topic จากทีม backend<br />รหัสผ่านจะไม่ถูกบันทึกในเครื่อง</p>
       </div>
       <div className="settings-actions">
-        {connection === 'connected' && <button type="button" className="button secondary" onClick={onDisconnect}>ตัดการเชื่อมต่อ</button>}
         <button type="submit" className="button primary" disabled={connecting}>
           {!connecting && <Icon name="settings-IconArrow" size={20} />}
-          {connecting ? 'กำลังเชื่อมต่อ…' : 'บันทึกและเชื่อมต่อ'}
+          {connecting ? 'กำลังเชื่อมต่อ…' : 'บันทึกการตั้งค่า'}
         </button>
         <p className="small muted">จำ URL ชื่อผู้ใช้ และ topic ไว้บนอุปกรณ์นี้</p>
       </div>
