@@ -1,8 +1,6 @@
-
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include "ControlSession.h"
 
 // ========== WiFi ==========
 const char* ssid = "iPhone";
@@ -15,7 +13,7 @@ const char* topic = "n8q4x2m7v9p3k6t1r5z0/command_out";
 
 // ========== Buzzer ==========
 const int BUZZER_PIN = 23;
-const int DUTY = 50;  // 8-bit duty
+const int DUTY = 255;  // 8-bit duty: 0-255
 
 // ========== MQTT Objects ==========
 WiFiClient espClient;
@@ -24,45 +22,54 @@ PubSubClient client(espClient);
 // ========== Defense State ==========
 bool defenseRequested = false;
 bool defenseRunning = false;
-ControlSession controlSession;
+
+unsigned long defenseDuration = 10000;
 
 // --------------------------------------------------
-// Play buzzer sweep up and down exactly one cycle
+// Play DEFENSE sound for the requested duration
 // --------------------------------------------------
-void playDefenseSound() {
+
+void playDefenseSound(unsigned long duration) {
   defenseRunning = true;
 
   Serial.println();
   Serial.println("========== DEFENSE ==========");
-  Serial.println("Playing buzzer sweep UP");
+  Serial.print("Duration: ");
+  Serial.print(duration);
+  Serial.println(" ms");
 
-  // Sweep frequency up: 100 -> 5000 Hz
-  for (int hz = 100; hz <= 5000; hz += 100) {
-    ledcWriteTone(BUZZER_PIN, hz);
-    ledcWrite(BUZZER_PIN, DUTY);
+  unsigned long startTime = millis();
 
-    Serial.print("Frequency: ");
-    Serial.print(hz);
-    Serial.println(" Hz");
+  int hz = 0;
+  int direction = 100;
 
-    delay(100);
-  }
+  while (millis() - startTime < duration) {
 
-  Serial.println("Playing buzzer sweep DOWN");
-
-  // Sweep frequency down: 5000 -> 100 Hz
-  for (int hz = 5000; hz >= 100; hz -= 100) {
-    ledcWriteTone(BUZZER_PIN, hz);
-    ledcWrite(BUZZER_PIN, DUTY);
+    if (hz <= 0) {
+      hz = 0;
+      ledcWrite(BUZZER_PIN, 0);  // Silence at 0 Hz
+    } else {
+      ledcWriteTone(BUZZER_PIN, hz);
+      ledcWrite(BUZZER_PIN, DUTY);
+    }
 
     Serial.print("Frequency: ");
     Serial.print(hz);
     Serial.println(" Hz");
 
-    delay(100);
+    delay(10);  // Faster frequency sweep
+
+    hz += direction;
+
+    if (hz >= 5000) {
+      hz = 5000;
+      direction = -100;
+    } else if (hz <= 0) {
+      hz = 0;
+      direction = 100;
+    }
   }
 
-  // Turn buzzer off
   ledcWrite(BUZZER_PIN, 0);
   ledcWriteTone(BUZZER_PIN, 0);
 
@@ -73,21 +80,32 @@ void playDefenseSound() {
   defenseRunning = false;
 }
 
+
 // --------------------------------------------------
-// MQTT callback: parse JSON commands
+// MQTT callback
 // --------------------------------------------------
-void callback(char* receivedTopic, byte* payload,
-              unsigned int length) {
-  // Ignore messages from other topics
+void callback(char* receivedTopic, byte* payload, unsigned int length) {
+  Serial.println();
+  Serial.println("========== MQTT RECEIVED ==========");
+
+  Serial.print("Topic: ");
+  Serial.println(receivedTopic);
+
+  Serial.print("Message: ");
+  for (unsigned int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
   if (strcmp(receivedTopic, topic) != 0) {
+    Serial.println("Ignored: incorrect topic.");
     return;
   }
 
   // Parse JSON
   JsonDocument doc;
 
-  DeserializationError error =
-      deserializeJson(doc, payload, length);
+  DeserializationError error = deserializeJson(doc, payload, length);
 
   if (error) {
     Serial.print("JSON parse failed: ");
@@ -95,53 +113,60 @@ void callback(char* receivedTopic, byte* payload,
     return;
   }
 
+  // Display message metadata
   const char* type = doc["type"] | "";
   const char* source = doc["source"] | "";
   const char* session = doc["session"] | "";
-  if (!doc["type"].is<const char*>() && strcmp(doc["action"] | "", "STOP") == 0) {
-    controlSession.invalidate();
-    defenseRequested = false;
-    return;
-  }
-  if (strcmp(type, "control") == 0 && strcmp(source, "web") == 0) {
-    const char* mode = doc["mode"] | "";
-    if ((strcmp(mode, "voice") == 0 || strcmp(mode, "joystick") == 0) &&
-        controlSession.begin(session, strcmp(mode, "joystick") == 0, millis())) defenseRequested = false;
-    return;
-  }
-  if (!doc["seq"].is<uint32_t>()) return;
-  uint32_t sequence = doc["seq"].as<uint32_t>();
-  if (strcmp(type, "stop") == 0 && strcmp(source, "web") == 0) {
-    if (strcmp(doc["action"] | "", "STOP") == 0 && controlSession.acceptStop(session, sequence)) defenseRequested = false;
-    return;
-  }
-  // Joystick refreshes share this topic; ignore them without flooding Serial.
-  if (strcmp(type, "voice") != 0 || strcmp(source, "voice") != 0 ||
-      !controlSession.acceptVoice(session, sequence)) return;
+  int seq = doc["seq"] | 0;
+
+  Serial.print("Type: ");
+  Serial.println(type);
+
+  Serial.print("Source: ");
+  Serial.println(source);
+
+  Serial.print("Session: ");
+  Serial.println(session);
+
+  Serial.print("Sequence: ");
+  Serial.println(seq);
 
   // Read commands array
   JsonArray commands = doc["commands"].as<JsonArray>();
 
   if (commands.isNull()) {
-    Serial.println("No commands array found.");
+    Serial.println("ERROR: commands array not found.");
     return;
   }
 
   for (JsonObject command : commands) {
     const char* action = command["action"] | "";
 
-    Serial.print("Action received: ");
+    // แก้ไขตรงนี้: ใช้ defenseDuration เป็นค่าสำรอง (ถ้าใน JSON ไม่ได้ส่ง duration มา จะคงค่า 10000 ไว้)
+    unsigned long duration = command["duration"] | defenseDuration;
+
+    Serial.print("Action: ");
     Serial.println(action);
+
+    Serial.print("Duration: ");
+    Serial.print(duration);
+    Serial.println(" ms");
 
     if (strcmp(action, "DEFENSE") == 0) {
       if (!defenseRunning && !defenseRequested) {
+        defenseDuration = duration;
         defenseRequested = true;
-        Serial.println("DEFENSE queued!");
+
+        Serial.println("DEFENSE queued successfully!");
       } else {
         Serial.println("DEFENSE already running/queued.");
       }
+    } else {
+      Serial.println("Unknown action.");
     }
   }
+
+  Serial.println("===================================");
 }
 
 // --------------------------------------------------
@@ -214,6 +239,8 @@ void setup() {
 
   Serial.println();
   Serial.println("ESP32 MQTT Buzzer Ready");
+  Serial.print("Listening on: ");
+  Serial.println(topic);
 }
 
 // --------------------------------------------------
@@ -221,22 +248,18 @@ void setup() {
 // --------------------------------------------------
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
-    controlSession.invalidate();
-    defenseRequested = false;
     setupWiFi();
   }
 
   if (!client.connected()) {
-    controlSession.invalidate();
-    defenseRequested = false;
     reconnectMQTT();
   }
 
   client.loop();
 
-  // Play once for each received DEFENSE command
+  // Play DEFENSE using duration from MQTT
   if (defenseRequested && !defenseRunning) {
     defenseRequested = false;
-    playDefenseSound();
+    playDefenseSound(defenseDuration);
   }
 }
