@@ -152,6 +152,7 @@ input::placeholder, textarea::placeholder { color: var(--ct-muted); opacity: 1; 
 .combat-button.attack { color: var(--ct-orange); }
 .combat-button.attack:not(:disabled):active { background: var(--ct-orange); color: var(--ct-black); box-shadow: var(--ct-inset); }
 .combat-button.attack[aria-busy="true"] { opacity: 1; background: var(--ct-orange-dim); box-shadow: var(--ct-inset); }
+.combat-button.defense:not(:disabled):active, .combat-button.defense[aria-busy="true"] { opacity: 1; background: var(--ct-orange-dim); color: var(--ct-orange); box-shadow: var(--ct-inset); }
 .combat-button:disabled { opacity: .35; }
 .connection-dialog { width: min(294px, calc(100vw - 48px)); margin: auto; padding: 28px 24px; border: 1px solid var(--ct-border); border-radius: 20px; color: var(--ct-white); background: var(--ct-controller); text-align: center; }
 .connection-dialog[open] { display: flex; flex-direction: column; align-items: center; gap: 20px; }

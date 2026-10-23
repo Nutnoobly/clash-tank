@@ -23,6 +23,9 @@ export default function App() {
   const [attackState, setAttackState] = useState('idle');
   const attackBusy = useRef(false);
   const attackTimer = useRef(null);
+  const [defenseState, setDefenseState] = useState('idle');
+  const defenseBusy = useRef(false);
+  const defenseTimer = useRef(null);
   const [phase, setPhase] = useState('ready');
   const [draft, setDraft] = useState('');
   const [typing, setTyping] = useState(false);
@@ -67,7 +70,7 @@ export default function App() {
   }, []);
 
   const selectDirection = useCallback(value => {
-    if (value !== 'neutral' && attackBusy.current) return;
+    if (value !== 'neutral' && (attackBusy.current || defenseBusy.current)) return;
     setJoystickDirection(value);
     setSendError('');
     vehicle.current?.move(value).catch(error => {
@@ -76,7 +79,7 @@ export default function App() {
   }, []);
 
   async function attack() {
-    if (!online || modeRef.current !== 'joystick' || attackBusy.current) return;
+    if (!online || modeRef.current !== 'joystick' || attackBusy.current || defenseBusy.current) return;
     attackBusy.current = true;
     setAttackState('sending');
     setJoystickDirection('neutral');
@@ -97,11 +100,35 @@ export default function App() {
     if (mounted.current) setAttackState('idle');
   }
 
+  async function defend() {
+    if (!online || modeRef.current !== 'joystick' || attackBusy.current || defenseBusy.current) return;
+    defenseBusy.current = true;
+    setDefenseState('sending');
+    setJoystickDirection('neutral');
+    setSendError('');
+    try {
+      const packet = await vehicle.current.defense();
+      if (!mounted.current) return;
+      if (packet) {
+        setDefenseState('submitted');
+        // Submission feedback only: ESP32 execution is not acknowledged.
+        defenseTimer.current = setTimeout(() => {
+          defenseBusy.current = false;
+          setDefenseState('idle');
+        }, 350);
+        return;
+      }
+    } catch (error) { if (mounted.current) setSendError(error.message); }
+    defenseBusy.current = false;
+    if (mounted.current) setDefenseState('idle');
+  }
+
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       clearTimeout(attackTimer.current);
+      clearTimeout(defenseTimer.current);
       sendGeneration.current += 1;
       connectionGeneration.current += 1;
       vehicle.current?.dispose();
@@ -364,7 +391,7 @@ export default function App() {
         <button type="button" className="icon-button connection-settings" onClick={openSettings} aria-label="เปิดการตั้งค่า" ref={settingsButton}><Icon name="ready-IconSettings" size={18} /></button>
       </div>
       {mode === 'joystick' ? <Joystick key={connection} direction={joystickDirection} onDirectionChange={selectDirection}
-        onAttack={attack} attackState={attackState}
+        onAttack={attack} attackState={attackState} onDefense={defend} defenseState={defenseState}
         unavailable={!online} reconnecting={connection === 'connecting'} error={sendError} /> : <main id="voice-panel" role="tabpanel" aria-labelledby="voice-tab" className={`main-content phase-${phase}`}>
         <div className="instruction" aria-live="polite">
           <h1>{heading}</h1>

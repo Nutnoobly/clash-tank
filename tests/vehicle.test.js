@@ -55,6 +55,46 @@ test('attack retires motion, publishes once, and requires a new direction after 
   assert.equal(f.packets.filter(p => p.action === 'ATTACK').length, 1);
 });
 
+test('defense claims a fresh joystick session, sends once, and never resumes motion', async () => {
+  const f = fixture();
+  await f.control.move('forward');
+  const packet = await f.control.defense();
+  assert.deepEqual(packet, { type: 'joystick', source: 'web', session: 'session-2', seq: 1, action: 'DEFENSE', duration: 500 });
+  assert.equal(f.ticking, false);
+  assert.equal(f.voices.length, 0);
+  const count = f.packets.length;
+  f.tick(5000);
+  assert.equal(f.packets.length, count);
+  await f.control.move('left');
+  assert.equal(f.packets.at(-1).session, 'session-3');
+  assert.equal(f.packets.at(-1).action, 'TURN_LEFT');
+});
+
+test('pending defense rejects duplicate combat and STOP cancels its pending claim', async () => {
+  const f = fixture();
+  const original = f.transport.sendCommand;
+  let complete;
+  f.transport.sendCommand = p => p.type === 'control' ? new Promise(resolve => { complete = resolve; }) : original(p);
+  const pending = f.control.defense();
+  assert.equal(await f.control.defense(), false);
+  assert.equal(await f.control.attack(), false);
+  await f.control.stop(true);
+  complete();
+  assert.equal(await pending, false);
+  assert.equal(f.packets.some(p => p.action === 'DEFENSE'), false);
+});
+
+test('defense publish failure disarms without replay and attack cooldown blocks defense', async () => {
+  const f = fixture();
+  const original = f.transport.sendCommand;
+  f.transport.sendCommand = p => p.action === 'DEFENSE' ? Promise.reject(new Error('defense failed')) : original(p);
+  await assert.rejects(f.control.defense(), /defense failed/);
+  assert.equal(f.packets.at(-1).type, 'stop');
+  assert.deepEqual(f.errors, ['defense failed']);
+  await f.control.attack();
+  assert.equal(await f.control.defense(), false);
+});
+
 test('attack cancels a pending movement claim and ignores repeated attack requests', async () => {
   const f = fixture();
   const original = f.transport.sendCommand;

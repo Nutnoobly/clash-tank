@@ -4,4 +4,4 @@ Icons are SVG exports from the approved [Clash Tank Figma design](https://www.fi
 
 `controller/` contains the six state exports from the [approved latched controller component](https://www.figma.com/design/l3fe9OmtvpMyYDG1LJJbcF/clashTank?node-id=43-275): neutral, forward, left, right, backward, and offline. The 351 × 351 SVG bounds include the neumorphic shadows around the 326 × 326 interaction area (10 px above/left, 15 px below/right). These files are bundled locally; runtime code does not depend on temporary Figma URLs.
 
-The orange microphone, combat icons, and connection progress indicator are exports from the latest Figma revision. Attack sends a direct one-shot command with a fresh joystick session; defense remains disabled pending ESP32 support.
+The orange microphone, combat icons, and connection progress indicator are exports from the latest Figma revision. Attack and defense send direct one-shot commands with fresh joystick sessions. Defense submission is prepared on the web; execution still requires ESP32 support.

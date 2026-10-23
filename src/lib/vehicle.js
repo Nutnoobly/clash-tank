@@ -12,7 +12,7 @@ export function createVehicleControl(transport, onFailure, {
 } = {}) {
   let current = null;
   let timer = null;
-  let attackPending = false;
+  let combatPending = false;
   let attackReadyAt = 0;
 
   function clearTimer() { if (timer !== null) cancel(timer); timer = null; }
@@ -59,11 +59,31 @@ export function createVehicleControl(transport, onFailure, {
       .catch(error => fail(record, error));
   }
 
+  async function sendCombat(action) {
+    if (combatPending || now() < attackReadyAt) return false;
+    combatPending = true;
+    let record;
+    try {
+      // Retire motion, including pending claims; never heartbeat a combat action.
+      record = await activate('joystick');
+      if (!record || current !== record) return false;
+      const packet = { type: 'joystick', source: 'web', session: record.session,
+        seq: ++record.seq, action, duration: CONTROL_TIMEOUT_MS };
+      await transport.sendCommand(packet);
+      if (current !== record) return false;
+      if (action === 'ATTACK') attackReadyAt = now() + ATTACK_RECOVERY_MS;
+      return packet;
+    } catch (error) {
+      if (record) fail(record, error);
+      throw error;
+    } finally { combatPending = false; }
+  }
+
   return {
     async setMode(mode) { await activate(mode); },
     async move(direction) {
       if (direction === 'neutral') return stop(true);
-      if (attackPending || now() < attackReadyAt) throw new Error('รอรอบโจมตีก่อนเลือกทิศทางใหม่');
+      if (combatPending || now() < attackReadyAt) throw new Error('รอรอบโจมตีหรือส่งคำสั่งให้เสร็จก่อนเลือกทิศทางใหม่');
       const action = ACTIONS[direction];
       if (!action) throw new Error('ทิศทางไม่ถูกต้อง');
       const record = await activate('joystick');
@@ -71,27 +91,8 @@ export function createVehicleControl(transport, onFailure, {
       refresh(record, action);
       if (current === record) timer = schedule(() => refresh(record, action), HEARTBEAT_MS);
     },
-    async attack() {
-      if (attackPending || now() < attackReadyAt) return false;
-      attackPending = true;
-      let record;
-      try {
-        // Retire motion (including pending claims) before the one-shot action.
-        // A new claim also works when the old centered session has expired.
-        record = await activate('joystick');
-        if (!record || current !== record) return false;
-        const packet = { type: 'joystick', source: 'web', session: record.session,
-          seq: ++record.seq, action: 'ATTACK', duration: CONTROL_TIMEOUT_MS };
-        await transport.sendCommand(packet);
-        if (current !== record) return false;
-        attackReadyAt = now() + ATTACK_RECOVERY_MS;
-        // Do not heartbeat ATTACK or automatically restore the previous direction.
-        return packet;
-      } catch (error) {
-        if (record) fail(record, error);
-        throw error;
-      } finally { attackPending = false; }
-    },
+    attack() { return sendCombat('ATTACK'); },
+    defense() { return sendCombat('DEFENSE'); },
     async sendVoice(text, confidence) {
       const record = await activate('voice');
       if (!record || current !== record) throw new Error('ยกเลิกคำสั่งจากโหมดก่อนหน้าแล้ว');

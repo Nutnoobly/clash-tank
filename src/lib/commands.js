@@ -12,7 +12,7 @@ export function validateControlPayload(payload) {
   if (payload.type === 'control' && ['voice', 'joystick'].includes(payload.mode)) return;
   if (!Number.isInteger(payload.seq) || payload.seq < 1 || payload.seq > 0xffffffff) throw new Error('ลำดับคำสั่งไม่ถูกต้อง');
   if (payload.type === 'stop' && payload.action === 'STOP') return;
-  if (payload.type === 'joystick' && ['FORWARD', 'BACKWARD', 'TURN_LEFT', 'TURN_RIGHT', 'ATTACK'].includes(payload.action)
+  if (payload.type === 'joystick' && ['FORWARD', 'BACKWARD', 'TURN_LEFT', 'TURN_RIGHT', 'ATTACK', 'DEFENSE'].includes(payload.action)
     && payload.duration === CONTROL_TIMEOUT_MS) return;
   throw new Error('คำสั่งควบคุมรถไม่ถูกต้อง');
 }

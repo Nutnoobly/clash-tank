@@ -69,6 +69,17 @@ Each queued ATTACK stops the motors and runs exactly one cycle: 91 through 180 d
 
 The cycle runs in the main loop, outside the MQTT callback. The supplied blocking delays mean MQTT messages (including STOP and new session claims), disconnect detection and status updates wait until the cycle finishes. A STOP received before execution clears the queued attack. ESP32 ignores ATTACK and continues handling DEFENSE; mixed batches containing DEFENSE remain rejected as a whole by the UNO.
 
+## Joystick defense (web publisher only)
+
+The web defense button claims a fresh joystick session and sends the following as two separate messages to `command_out`, QoS 0, no retain:
+
+```json
+{"type":"control","source":"web","session":"joy-defense-A","mode":"joystick"}
+{"type":"joystick","source":"web","session":"joy-defense-A","seq":1,"action":"DEFENSE","duration":500}
+```
+
+The claim cancels existing movement. The browser centers the joystick, sends DEFENSE once without a heartbeat, and shows submission feedback for 350 ms. It never resumes motion automatically. `duration:500` is the joystick envelope lease, not the buzzer playback time. The current ESP32 firmware ignores joystick packets, so this web-only preparation does not yet play a defense sound. No ESP32 firmware changes are included.
+
 ## Timing and limits
 
 - The browser clears its interval and attempts STOP on center, mode/settings changes, hidden/pagehide, focus loss in joystick mode, disconnect, or publish failure. It refuses to resume a heartbeat after an event-loop gap of 500 ms or longer.

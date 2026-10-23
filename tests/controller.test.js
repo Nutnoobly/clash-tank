@@ -98,7 +98,9 @@ test('joystick ATTACK uses command_out with a session, sequence and exact lease'
   assert.deepEqual(f.clients[0].published[0].options, { qos: 0, retain: false });
   await assert.rejects(f.transport.sendCommand({ ...packet, duration: 2200 }));
   await assert.rejects(f.transport.sendCommand({ action: 'ATTACK' }));
-  await assert.rejects(f.transport.sendCommand({ ...packet, action: 'DEFENSE' }));
+  await f.transport.sendCommand({ ...packet, seq: 2, action: 'DEFENSE' });
+  assert.equal(f.clients[0].published.at(-1).payload.action, 'DEFENSE');
+  await assert.rejects(f.transport.sendCommand({ ...packet, action: 'UNKNOWN' }));
   f.transport.close();
 });
 
