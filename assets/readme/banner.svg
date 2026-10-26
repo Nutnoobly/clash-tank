@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-labelledby="title desc">
+  <title id="title">Clash Tank — Speak. Review. Send.</title>
+  <desc id="desc">Black and orange project banner for a Thai and English voice-controlled tank prototype.</desc>
+  <rect width="1280" height="360" rx="16" fill="#0b0b0b"/>
+  <path d="M930 0h350v360H810z" fill="#16110d"/>
+  <g stroke="#ff7a1a" fill="none" opacity=".3"><circle cx="1110" cy="180" r="118"/><circle cx="1110" cy="180" r="82"/><path d="M960 180h300M1110 30v300"/></g>
+  <text x="64" y="66" fill="#ff7a1a" font-family="monospace" font-size="15" letter-spacing="3">VOICE CONTROL / IOT PROTOTYPE</text>
+  <text x="58" y="174" fill="#f5f5f5" font-family="Arial, sans-serif" font-size="100" font-weight="800" letter-spacing="-4">CLASH <tspan fill="#ff7a1a">TANK</tspan></text>
+  <text x="64" y="229" fill="#f5f5f5" font-family="Arial, sans-serif" font-size="28">Speak. Review. Send.</text>
+  <path d="M64 266h710" stroke="#303030"/>
+  <text x="64" y="305" fill="#a3a3a3" font-family="monospace" font-size="16" letter-spacing="1">THAI + ENGLISH  /  WEB + MQTT + LOCAL LLM</text>
+</svg>
