@@ -2,6 +2,30 @@
   'use strict';
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
+
+  const themeToggle = $('#theme-toggle');
+  const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+  let themeChosen = false;
+  try { themeChosen = ['light', 'dark'].includes(localStorage.getItem('clashtank-report-theme')); } catch {}
+  function applyTheme(theme, remember = false) {
+    const dark = theme === 'dark';
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    themeToggle.setAttribute('aria-pressed', String(dark));
+    themeToggle.setAttribute('aria-label', dark ? 'เปิดโหมดสว่าง' : 'เปิดโหมดมืด');
+    themeToggle.title = dark ? 'เปิดโหมดสว่าง' : 'เปิดโหมดมืด';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#111315' : '#f2f4f6');
+    if (remember) {
+      themeChosen = true;
+      try { localStorage.setItem('clashtank-report-theme', dark ? 'dark' : 'light'); } catch {}
+    }
+  }
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+  themeToggle.addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
+  systemTheme.addEventListener('change', event => {
+    if (!themeChosen) applyTheme(event.matches ? 'dark' : 'light');
+  });
+
   const tabs = $$('.intro-tabs [role="tab"]');
   function selectTab(tab) {
     tabs.forEach(item => {

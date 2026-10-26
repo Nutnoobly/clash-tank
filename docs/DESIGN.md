@@ -60,6 +60,8 @@ components:
 White cards, cool gray framing, local Thai typography and real vehicle photographs create a compact, practical project overview. Orange marks the brand, selected controls, controller link and MQTT node.
 
 ## Colors
+
+Dark mode uses page `#111315`, surface `#1b1e22`, alternate surface `#24282e`, text `#eff1f4`, secondary text `#b0b7c1`, and border `#343a43`. The orange accent remains `#ff7a1a` in both themes.
 The single accent is the user-confirmed exact orange, including its contrast exception on white. Ink carries primary text; muted carries supporting copy; line separates surfaces. Accent-soft highlights the broker and viewer hover states.
 
 ## Typography
@@ -77,6 +79,8 @@ Cards are flat, defined by thin neutral borders and white surfaces. Gallery arro
 Cards use the card radius. Resource rows and diagram nodes use their own radii. Gallery arrows are circular, and the selected gallery dot stretches into a pill. Photos fill their gallery card edge to edge.
 
 ## Components
+
+A 42px circular theme button sits at the upper right without shifting the centered logo. Moon opens dark mode; sun returns to light. It has an accessible action label and pressed state. The saved preference takes precedence over system theme; changing system theme only applies before an explicit selection.
 - **Brand navigation:** centered wordmark; clicking returns to the overview tab and page top. A focusable skip link targets the intro.
 - **Intro tabs:** three bottom tabs (ภาพรวม / แนวคิด / ฟีเจอร์), muted by default, orange with a (3px) underline when selected. Click, Left/Right, Home and End select panels; switching resets intro scroll and preserves one keyboard tab stop.
 - **Gallery:** four real photos with cover cropping, previous/next arrows and four dot buttons. Arrows wrap; Left/Right keys work within the gallery. Selected dots expose pressed state, and image changes update a polite status message.
