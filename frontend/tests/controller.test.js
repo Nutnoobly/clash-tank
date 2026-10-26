@@ -8,6 +8,12 @@ import { createSpeechSession } from '../src/lib/speech.js';
 
 const config = { brokerUrl: 'wss://example.invalid:8884/mqtt', username: '', password: '', voiceTopic: 'test/voice' };
 
+test('saved settings migrate the command topic and reject conflicting topics', () => {
+  assert.equal(sanitizeSettings(config).commandTopic, 'n8q4x2m7v9p3k6t1r5z0/command_out');
+  assert.ok(validateSettings({ ...config, commandTopic: config.voiceTopic }).commandTopic);
+  assert.ok(validateSettings({ ...config, commandTopic: 'car/#' }).commandTopic);
+});
+
 class FakeClient extends EventEmitter {
   connected = false;
   published = [];
@@ -58,13 +64,43 @@ test('offline commands are rejected, never queued or replayed after connecting',
   f.transport.close();
 });
 
-test('normal commands and STOP use the same backend voice topic', async () => {
+test('raw voice transport preserves the backend text payload contract', async () => {
   const f = fixture(); f.connect();
   await f.transport.send('เดินหน้า', 0.9);
   await f.transport.send('STOP');
   assert.deepEqual(f.clients[0].published.map(item => item.payload.text), ['เดินหน้า', 'STOP']);
   assert.equal(f.clients[0].published[0].payload.confidence, 0.9);
   assert.equal('confidence' in f.clients[0].published[1].payload, false);
+  f.transport.close();
+});
+
+test('direct packets use command_out without retain and voice metadata stays on voice_in', async () => {
+  const f = fixture(); f.connect();
+  const claim = { type: 'control', source: 'web', session: 'test-session', mode: 'joystick' };
+  await f.transport.sendCommand(claim);
+  await f.transport.sendCommand({ type: 'joystick', source: 'web', session: 'test-session', seq: 1, action: 'FORWARD', duration: 500 });
+  await f.transport.sendCommand({ action: 'STOP' });
+  await f.transport.send('เดินหน้า', .9, { session: 'voice-session' });
+  assert.ok(f.clients[0].published.slice(0, 3).every(p => p.topic.endsWith('/command_out') && p.options.retain === false && p.options.qos === 0));
+  assert.equal(f.clients[0].published[3].topic, config.voiceTopic);
+  assert.equal(f.clients[0].published[3].payload.session, 'voice-session');
+  assert.equal(f.clients[0].published[3].payload.seq, 1);
+  await assert.rejects(f.transport.sendCommand({ type: 'joystick', source: 'web', session: 'test', seq: 2, action: 'FORWARD', duration: 60000 }));
+  f.transport.close();
+});
+
+test('joystick ATTACK uses command_out with a session, sequence and exact lease', async () => {
+  const f = fixture(); f.connect();
+  const packet = { type: 'joystick', source: 'web', session: 'attack-session', seq: 1, action: 'ATTACK', duration: 500 };
+  await f.transport.sendCommand(packet);
+  assert.deepEqual(f.clients[0].published[0].payload, packet);
+  assert.ok(f.clients[0].published[0].topic.endsWith('/command_out'));
+  assert.deepEqual(f.clients[0].published[0].options, { qos: 0, retain: false });
+  await assert.rejects(f.transport.sendCommand({ ...packet, duration: 2200 }));
+  await assert.rejects(f.transport.sendCommand({ action: 'ATTACK' }));
+  await f.transport.sendCommand({ ...packet, seq: 2, action: 'DEFENSE' });
+  assert.equal(f.clients[0].published.at(-1).payload.action, 'DEFENSE');
+  await assert.rejects(f.transport.sendCommand({ ...packet, action: 'UNKNOWN' }));
   f.transport.close();
 });
 

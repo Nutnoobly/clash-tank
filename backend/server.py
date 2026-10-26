@@ -3,10 +3,11 @@ import paho.mqtt.client as paho
 from dotenv import load_dotenv
 import json
 import time
-from ollama import chat, Client
+from ollama import Client
 from typing import Literal
 from pydantic import BaseModel
 from systemprompt import SYSTEM_PROMPT
+from voice_protocol import parse_voice_request, build_voice_response
 
 class Command(BaseModel):
     action: Literal[
@@ -27,13 +28,13 @@ class CommandBatch(BaseModel):
 load_dotenv()
 
 #read and assign .env to variable
-hivemq_host = os.getenv("HIVEMQ_HOST")
-hivemq_port = int(os.getenv("HIVEMQ_PORT", "8883"))
+hivemq_host = os.getenv("HIVEMQ_HOST", "broker.hivemq.com")
+hivemq_port = int(os.getenv("HIVEMQ_PORT", "1883"))
 hivemq_username = os.getenv("HIVEMQ_USERNAME")
 hivemq_password = os.getenv("HIVEMQ_PASSWORD")
 
-topic_voice = os.getenv("TOPIC_VOICE")
-topic_commands = os.getenv("TOPIC_COMMANDS")
+topic_voice = os.getenv("TOPIC_VOICE", "n8q4x2m7v9p3k6t1r5z0/voice_in")
+topic_commands = os.getenv("TOPIC_COMMANDS", "n8q4x2m7v9p3k6t1r5z0/command_out")
 
 ollama_host = os.getenv("OLLAMA_HOST")
 ollama_model = os.getenv("OLLAMA_MODEL")
@@ -47,38 +48,18 @@ client = paho.Client(
     protocol=paho.MQTTv5,
 )
 
-client.tls_set()
-client.username_pw_set(hivemq_username, hivemq_password)
+if hivemq_port == 8883:
+    client.tls_set()
+if hivemq_username:
+    client.username_pw_set(hivemq_username, hivemq_password)
 
 #validate payload function
 def validate_payload(payload):
     try:
-        json_payload = json.loads(payload)
-        print ("Json is valid\n")
-    except ValueError as e:
-        print ("Json is not valid")
+        return parse_voice_request(payload, int(time.time() * 1000))
+    except (ValueError, TypeError, UnicodeError) as error:
+        print("Invalid voice request:", error)
         return
-
-    timestamp = json_payload.get("timestamp", 0)
-    confidence = json_payload.get("confidence", 1.0)
-
-    if (confidence < 0.5) :
-        print("Confidence level too low :", confidence)
-        return
-
-    now_ms = int(time.time() * 1000)
-    age_ms = now_ms - timestamp
-    if age_ms > 5000:
-        print("Message time out:", age_ms, "ms")
-        return
-
-    text = json_payload.get("text", "").strip()
-    if not text:
-        print("Empty text")
-        return
-
-    print("Validation pass!\n")
-    return text
 
 #translate message to command using llm
 def message_to_command(message):
@@ -102,24 +83,21 @@ def on_connect(client, userdata, flags, reason_code, properties) :
 
 #read message functionprint("Retain message:", msg.retain)
 def on_message(client, userdata, msg):
-    if (msg.retain):
+    if msg.retain or msg.topic != topic_voice:
         print("Retain message:", msg.retain)
         return
     print("Topic : " + msg.topic)
-    print("Payload:", msg.payload.decode("utf-8"))
-
-    text = validate_payload(msg.payload)
-    if not text:
+    request = validate_payload(msg.payload)
+    if not request:
         return
 
-    command_json = message_to_command(text)
-    print("Command JSON:", command_json)
-
-    if not json.loads(command_json).get("commands"):
-        print("No valid commands, skipping publish")
+    try:
+        response = build_voice_response(request, message_to_command(request["text"]))
+    except Exception as error:
+        # Keep the MQTT worker alive if inference or output validation fails.
+        print("Voice translation failed:", error)
         return
-
-    client.publish(topic_commands, command_json)
+    client.publish(topic_commands, json.dumps(response), qos=0, retain=False)
 
 if __name__ == "__main__":
     #connect client

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { validateSettings } from '../lib/commands.js';
 
-export default function Settings({ settings, connection, onConnect, onDisconnect, onClose }) {
+export default function Settings({ settings, connection, onConnect, onClose }) {
   const [form, setForm] = useState(settings);
   const [errors, setErrors] = useState({});
   const formRef = useRef(null);
@@ -19,7 +19,7 @@ export default function Settings({ settings, connection, onConnect, onDisconnect
       formRef.current.elements.namedItem(Object.keys(next)[0])?.focus();
       return;
     }
-    onConnect({ ...form, brokerUrl: form.brokerUrl.trim(), voiceTopic: form.voiceTopic.trim(), username: form.username.trim() });
+    onConnect({ ...form, brokerUrl: form.brokerUrl.trim(), voiceTopic: form.voiceTopic.trim(), commandTopic: form.commandTopic.trim(), username: form.username.trim() });
   }
 
   const fields = [
@@ -27,6 +27,7 @@ export default function Settings({ settings, connection, onConnect, onDisconnect
     ['username', 'ชื่อผู้ใช้ (ถ้าต้องใช้)', 'เว้นว่างได้ หาก broker ไม่ต้องล็อกอิน', 'text'],
     ['password', 'รหัสผ่าน (ถ้าต้องใช้)', 'รหัสผ่านของ broker', 'password'],
     ['voiceTopic', 'Voice topic', 'ตรงกับ TOPIC_VOICE ของเซิร์ฟเวอร์', 'text'],
+    ['commandTopic', 'Command topic', 'ตรงกับ topic ของรถและ TOPIC_COMMANDS', 'text'],
   ];
 
   return <section className="settings-page" aria-labelledby="settings-title">
@@ -41,7 +42,7 @@ export default function Settings({ settings, connection, onConnect, onDisconnect
         {fields.map(([name, label, placeholder, type]) => <div className="field" key={name}>
           <label htmlFor={name}>{label}</label>
           <input id={name} name={name} type={type} placeholder={placeholder}
-            value={form[name]} required={name === 'brokerUrl' || name === 'voiceTopic'}
+            value={form[name]} required={['brokerUrl', 'voiceTopic', 'commandTopic'].includes(name)}
             onChange={event => { setForm(current => ({ ...current, [name]: event.target.value })); setErrors(current => ({ ...current, [name]: '' })); }}
             autoComplete={name === 'password' ? 'current-password' : name === 'username' ? 'username' : 'off'}
             autoCapitalize="none" spellCheck={false} maxLength={2048}
@@ -51,10 +52,9 @@ export default function Settings({ settings, connection, onConnect, onDisconnect
         <p className="small muted">ใช้ URL และ topic จากทีม backend<br />รหัสผ่านจะไม่ถูกบันทึกในเครื่อง</p>
       </div>
       <div className="settings-actions">
-        {connection === 'connected' && <button type="button" className="button secondary" onClick={onDisconnect}>ตัดการเชื่อมต่อ</button>}
         <button type="submit" className="button primary" disabled={connecting}>
           {!connecting && <Icon name="settings-IconArrow" size={20} />}
-          {connecting ? 'กำลังเชื่อมต่อ…' : 'บันทึกและเชื่อมต่อ'}
+          {connecting ? 'กำลังเชื่อมต่อ…' : 'บันทึกการตั้งค่า'}
         </button>
         <p className="small muted">จำ URL ชื่อผู้ใช้ และ topic ไว้บนอุปกรณ์นี้</p>
       </div>

@@ -1,6 +1,7 @@
 # Secrets and local configurations
 .env
-/arduino/clash-tank/config.h
+/arduino/**/config.h
+/arduino/.build/
 
 # Python virtual environment & cache
 venv/

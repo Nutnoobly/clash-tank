@@ -1,7 +1,10 @@
+import { DEFAULT_COMMAND_TOPIC } from './commands.js';
+
 export const DEFAULT_SETTINGS = Object.freeze({
   brokerUrl: 'wss://broker.hivemq.com:8884/mqtt',
   username: '',
   voiceTopic: 'n8q4x2m7v9p3k6t1r5z0/voice_in',
+  commandTopic: DEFAULT_COMMAND_TOPIC,
 });
 
 export const STORAGE_KEYS = Object.freeze({

@@ -2,48 +2,53 @@
 
 # Your voice. The next command.
 
-**Clash Tank** explores a simple idea: control a robotic tank in Thai or English, straight from your phone. Speak or type, review the message, then send it through MQTT to a local LLM translator.
+**Clash Tank** is a Thai/English voice and joystick tank controller: React + Vite, MQTT, a local Python/Ollama translator, UNO R4 WiFi motor control, and an ESP32 buzzer.
 
-**[Launch the controller ↗](https://clash-tank.vercel.app/)** · [How it works](#how-it-works) · [Run it yourself](#run-it-yourself) · [Project status](#project-status)
+**[Launch the controller ↗](https://clash-tank.vercel.app/)** · [How it works](#how-it-works) · [Run it yourself](#run-it-yourself) · [Control protocol](CONTROL_PROTOCOL.md)
 
-**React + Vite** / **HiveMQ MQTT** / **Python + Ollama** / **ESP32 target hardware**
+> Vercel hosts only the web interface. Python, Ollama, and the physical boards run separately. Submission is not acknowledgement that the vehicle executed a command.
 
-> **Prototype status:** the web controller is deployed. ESP32 firmware is still an empty placeholder—not a working vehicle controller. The Python backend runs separately from Vercel.
+## Use the controller
 
-## From speech to a command
+1. Open the website. It connects automatically using saved settings; the default broker is `wss://broker.hivemq.com:8884/mqtt`. The connection modal blocks controls until MQTT connects. Failed/lost connections retry after 2.5 seconds; returning online triggers an immediate attempt. Motion commands are never replayed.
+2. In **Settings**, match the broker, voice topic, and command topic to Python and both boards. Passwords stay in memory, not browser-local storage.
+3. In **เสียง** mode, select Thai or English and tap the microphone. Completed speech sends automatically; low-confidence speech requires editing or repeating. Select **พิมพ์คำสั่ง** for text entry, then **ส่งคำสั่ง**.
+4. In **จอย** mode, tap/drag or use arrow keys to select a direction. Releasing keeps the direction latched; select the center, Escape, or Home to stop.
 
 <p align="center">
-  <img src="assets/readme/controller.png" width="300" alt="Actual Clash Tank mobile controller: Thai voice input, text entry, language selection, and stop button in its disconnected state.">
+  <img src="assets/readme/controller.png" width="300" alt="Earlier Clash Tank voice controller, captured while disconnected; the current controller also includes joystick controls.">
   <br>
-  <sub>The deployed controller, captured in its disconnected state.</sub>
+  <sub>Earlier voice-controller screenshot; the current interface also includes joystick controls.</sub>
 </p>
 
-**01 — Connect** · Open Settings and match the broker and voice topic to your backend.
+**โจมตี** sends one direct `ATTACK`, centers the joystick, and waits 2.5 seconds before accepting another combat action or direction. The UNO servo cycle takes approximately 2.2 seconds and blocks MQTT handling, including STOP, until it finishes. Movement never resumes automatically.
 
-**02 — Speak** · Choose Thai or English. Use the microphone or type a command.
+**ป้องกัน** sends one direct `DEFENSE` and centers the joystick. The ESP32 plays a fixed five-second buzzer effect. An active-low IR detection on UNO A0 publishes `Being_Attacked`; ESP32 plays a one-second hit sound, interrupting defense without resuming it. Sound timing is non-blocking; existing network calls can still delay servicing.
 
-**03 — Review & send** · Check the transcript before submitting it. Offline messages are never queued for replay.
-
-Try a phrase like **“เดินหน้า 2 วินาที”** or **“forward for 2 seconds.”** These are example inputs, not a claim of verified vehicle movement.
+**Safety boundary:** the stop button and joystick center send STOP directly to `command_out`, bypassing Python/LLM, but this is **not a hardware emergency stop**. Joystick motion refreshes every 150 ms with a 500 ms lease; the firmware checks expiry cooperatively, so blocking calls can delay stopping. Voice queues have their own timed actions. Do not use a public broker for private or safety-critical control. See [CONTROL_PROTOCOL.md](CONTROL_PROTOCOL.md) for session guards, timing limits, and hardware checks.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    Phone["Phone controller\nSpeech or text + review"] -->|MQTT over WSS| Broker["MQTT broker"]
-    Broker -->|Voice payload| Python["Python + Ollama\nText to command JSON"]
-    Python -->|Command batch| Broker
-    Broker -.->|Planned hardware integration| ESP["ESP32 tank\nFirmware not implemented"]
+    Phone["Phone controller\nVoice, text, or joystick"] -->|MQTT over WSS| Broker["MQTT broker"]
+    Broker -->|Voice request| Python["Python + Ollama\nText to command JSON"]
+    Python -->|Validated voice batch| Broker
+    Broker -->|Motor and servo commands| UNO["UNO R4 WiFi"]
+    Broker -->|Defense and hit sound| ESP["ESP32 buzzer"]
+    UNO -->|IR hit event| Broker
 ```
 
-The browser captures speech; a local Ollama model interprets the transcript. Broker and topic settings connect the two. Vercel hosts **only the web interface**, not the Python process or model.
+Joystick, combat buttons, and STOP bypass the translator. Voice requests and responses carry session/sequence metadata; old or mismatched sessions cannot start a motor queue. Sessions are stale-command guards, not authentication or a multi-controller ownership service. The protocol supports one operator and has no vehicle acknowledgement/status topic.
 
 ## Run it yourself
+
+Each section starts from the repository root in a separate terminal.
 
 <details>
 <summary><strong>Web controller — develop, test, build</strong></summary>
 
-Requires **Node.js 22.12+**. From the repository root:
+Requires **Node.js 22.12+**.
 
 ```bash
 cd frontend
@@ -51,24 +56,24 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173/`. For phone microphone access, use the hosted demo or HTTPS with a trusted certificate—not a LAN HTTP address. Browser speech support varies; text entry is available as a fallback.
+Open `http://localhost:5173/`. For phone microphone access, use the hosted controller or HTTPS with a trusted certificate, not a LAN HTTP address. Browser speech support varies; text entry is available as a fallback.
 
 From `frontend/`:
 
 ```bash
-npm test          # Controller logic tests
-npm run build     # Static output in dist/
-npm run preview   # Preview the production build
+npm test
+npm run build     # Static output in frontend/dist/ relative to repository root
+npm run preview
 ```
 
-Deploy only `frontend/dist/`. The root `vercel.json` configures installation and builds from `frontend/`; keep the Vercel project's Root Directory at the repository root. Never expose `.env` or backend credentials.
+Both `/` and `/controller.html` load the controller. Deploy only `frontend/dist/`. The root `vercel.json` builds from `frontend/`; keep the Vercel project's Root Directory at the repository root. Never deploy `.env` or backend credentials.
 
 </details>
 
 <details>
 <summary><strong>Python translator — MQTT + local Ollama</strong></summary>
 
-Install Ollama, download the model, and keep its service running (`ollama serve` if not already running). From the repository root in a separate terminal:
+Install Ollama, download the configured model, and keep its service running (`ollama serve` if not already running).
 
 ```bash
 cd backend
@@ -78,49 +83,52 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-For a fresh setup, run `cp .env.example .env` from `backend/`. Keep an existing `.env` instead of overwriting it; after this restructure it belongs at `backend/.env`.
-
-Set the broker, credentials, topics, and Ollama settings in `backend/.env`, then start from `backend/` with the virtual environment active:
+For a fresh setup, run `cp .env.example .env` from `backend/`. Keep an existing `.env` instead of overwriting it. Set its broker, credentials, topics, and Ollama settings, then start from `backend/` with the virtual environment active:
 
 ```bash
 python server.py
 ```
 
-In the web controller's Settings, use a **WSS endpoint on the same broker** and match `TOPIC_VOICE`. The controller defaults to the public HiveMQ endpoint `wss://broker.hivemq.com:8884/mqtt`; change it if your backend uses another broker.
+Match `TOPIC_VOICE` and `TOPIC_COMMANDS` to the web settings and boards. Defaults use `broker.hivemq.com`: browser WSS `8884/mqtt`, boards/Python TCP `1883`; existing `.env` values override defaults. Python enables TLS for port 8883.
 
-Voice payload:
+The worker rejects retained, untagged, stale, low-confidence, and empty requests. Valid text goes to Ollama; trusted request session metadata is copied onto validated output. Non-STOP durations must be 1–60000 ms. Restart the updated worker with the updated firmware: legacy untagged movement packets are intentionally rejected by the boards. [CONTROL_PROTOCOL.md](CONTROL_PROTOCOL.md) describes the complete claim/request/response sequence.
 
-```json
-{"text": "forward for 2 seconds", "timestamp": 0, "confidence": 0.95}
+Offline protocol tests, from `backend/`:
+
+```bash
+python -m unittest discover -s tests -p 'test_*.py'
 ```
 
-Replace `0` with the current Unix epoch time in **milliseconds** when testing; the backend rejects messages older than 5000 ms. Confidence is optional. Retained messages, low confidence, and empty text are rejected; empty command batches are not published.
+**Known schema mismatch:** the prompt includes `SPIN` and `duration_ms`, while the Python schema omits `SPIN` and uses `duration`. Prompt rules do not guarantee correct interpretation; this restructure does not change that contract.
 
 </details>
 
 <details>
-<summary><strong>ESP32 — hardware work still ahead</strong></summary>
+<summary><strong>Arduino boards — separate sketches and offline checks</strong></summary>
 
-`arduino/clash-tank/clash-tank.ino` is currently empty. `arduino/clash-tank/config.h.example` provides the Wi-Fi, MQTT, and pin configuration template for future implementation; copy it to `config.h` in the same folder. Development uses Arduino IDE with ESP32 support, `PubSubClient`, and `ArduinoJson`.
+- **UNO R4 WiFi:** open [`arduino/clashtank/clashtank.ino`](arduino/clashtank/clashtank.ino). Keep `ControlSession.h` and `ProximityTrigger.h` beside it. Uses `WiFiS3`, `PubSubClient`, ArduinoJson 7, `LiquidCrystal_I2C`, and `Servo`. Attack servo signal: pin 11; active-low IR output: A0.
+- **ESP32 buzzer:** open [`arduino/esp32buzzer-clashtank/esp32buzzer-clashtank.ino`](arduino/esp32buzzer-clashtank/esp32buzzer-clashtank.ino). Keep `BuzzerEffects.h` beside it. Uses ESP32 Arduino Core 3.x, `PubSubClient`, and ArduinoJson 7. Buzzer: GPIO 23.
+- Each sketch is already in its own same-named directory. **Build/upload them separately**, never as one combined sketch. For a fresh checkout, copy each sketch's adjacent `config.h.example` to `config.h` and set Wi-Fi credentials there. Keep an existing `config.h` instead of overwriting it. These local files are ignored by Git; broker/topic settings remain in each sketch.
+- Motor pins and speeds are unchanged. ENA=2/ENB=7 are not the PWM pins listed in the existing UNO R4 comment; verify wiring and enable/PWM behavior before energizing motors. Connect controller, motor driver, and battery grounds together. **Never power motors directly from microcontroller pins.**
 
-Connect the ESP32, motor driver, and battery grounds together. **Never power motors directly from ESP32 pins.**
+Earlier commits contain hardcoded Wi-Fi credentials. Moving them to ignored config files does not erase Git history: rotate those credentials. Never commit a populated `config.h`.
 
-</details>
+Host-side checks require Python and a C++ compiler; the sound/IR integration check also requires an ArduinoJson 7 library checkout. From the repository root:
 
-## Project status
+```bash
+cd arduino
+python tests/run_firmware_tests.py
+python tests/run_esp32_defense_tests.py --arduinojson /path/to/ArduinoJson
+```
 
-- **Web:** deployed controller with Thai/English speech review, text fallback, local settings/history, and MQTT over WSS. Passwords stay in memory, not local storage.
-- **Backend:** MQTT → Ollama → MQTT bridge. **Schema alignment is still needed:** the prompt includes `SPIN` and `duration_ms`; the current Python schema omits `SPIN` and uses `duration`. No duration clamping is enabled.
-- **Hardware:** firmware, motor control, acknowledgements, and disconnect failsafes remain to be implemented.
-
-> **Safety boundary:** **ส่งแล้ว** means submitted, not executed. **หยุดรถ** sends `STOP` through the LLM pipeline; it is **not a motor emergency stop**. Prompt rules cannot guarantee correct interpretation. Do not use a public broker for private or safety-critical control.
-
-<details>
-<summary><strong>Find your way around the code</strong></summary>
-
-- [`frontend/`](frontend/) — React controller, HTML entrypoints, npm/Vite configuration, and [`tests/`](frontend/tests/).
-- [`backend/`](backend/) — [`server.py`](backend/server.py), bilingual prompt, Python requirements, and environment template.
-- [`arduino/clash-tank/`](arduino/clash-tank/) — firmware placeholder and hardware configuration template.
-- [`assets/readme/`](assets/readme/) — README banner and controller screenshot.
+Build artifacts stay in ignored `arduino/.build/`. These tests do not compile complete board firmware or energize hardware. Follow the [hardware validation steps](CONTROL_PROTOCOL.md#hardware-validation) with the wheels raised before use.
 
 </details>
+
+## Find your way around the code
+
+- [`frontend/`](frontend/) — React UI, HTML entrypoints, npm/Vite configuration, controller artwork, and JavaScript tests.
+- [`backend/`](backend/) — MQTT/Ollama worker, bilingual prompt, `voice_protocol.py`, requirements, environment template, and Python protocol tests.
+- [`arduino/`](arduino/) — separate UNO/ESP32 sketch folders and host-side firmware tests.
+- [`CONTROL_PROTOCOL.md`](CONTROL_PROTOCOL.md) — packet formats, lifecycle/safety limits, and hardware validation.
+- [`assets/readme/`](assets/readme/) — README banner and earlier controller screenshot.
