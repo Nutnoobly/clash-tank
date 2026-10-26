@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-26T00:00:00Z",
+  "title": "Design System: ClashTank",
+  "extensions": {
+    "shadows": [
+      { "name": "gallery-arrow", "value": "0 3px 12px rgb(0 0 0 / .1)", "purpose": "Separate gallery controls from photography." },
+      { "name": "poster-viewer", "value": "0 24px 80px rgb(0 0 0 / .2)", "purpose": "Lift the modal above its dimmed backdrop." }
+    ],
+    "motion": [
+      { "name": "ease", "value": "cubic-bezier(.16,1,.3,1)", "purpose": "Gallery arrow scaling and selected-dot expansion." },
+      { "name": "state", "value": "200ms", "purpose": "Color, background and border transitions." },
+      { "name": "dot-width", "value": "250ms", "purpose": "Selected gallery dot expands to a pill." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "1200px" },
+      { "name": "content-height", "value": "1000px" },
+      { "name": "stacked", "value": "680px" },
+      { "name": "narrow", "value": "370px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Selected intro tab", "kind": "nav", "refersTo": "tab-selected",
+      "description": "One of three bottom tabs; selection underlines the active panel.",
+      "html": "<button class=\"ds-tab\" role=\"tab\" aria-selected=\"true\">ภาพรวม</button>",
+      "css": ".ds-tab{position:relative;padding:12px 13px 14px;min-width:70px;border:0;background:transparent;color:var(--accent,#ff7a1a);font:500 14px/1.8 Anuphan,Tahoma,sans-serif;cursor:pointer;transition:color .2s}.ds-tab:after{content:'';position:absolute;bottom:0;left:12px;right:12px;height:3px;border-radius:3px 3px 0 0;background:var(--accent,#ff7a1a)}.ds-tab:hover{color:var(--ink,#24272c)}.ds-tab:focus-visible{outline:2px solid var(--ink,#24272c);outline-offset:4px}"
+    },
+    {
+      "name": "Resource row", "kind": "nav", "refersTo": "resource-row",
+      "description": "Project resource with title, supporting label and external-action arrow.",
+      "html": "<a class=\"ds-resource\" href=\"https://github.com/Nutnoobly/clash-tank\"><span><strong>GitHub</strong><small>Source code ของ ClashTank</small></span><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\"><path d=\"M6 18 18 6M7 6h11v11\"/></svg></a>",
+      "css": ".ds-resource{display:flex;align-items:center;justify-content:space-between;gap:17px;padding:10px 24px;border:1px solid var(--line,#e0e4e9);border-radius:15px;background:var(--surface,#fff);color:var(--ink,#24272c);text-decoration:none;font-family:Anuphan,Tahoma,sans-serif;transition:background .2s,border-color .2s}.ds-resource strong{display:block;font-size:15px;font-weight:500;line-height:1.4}.ds-resource small{display:block;margin-top:3px;font-size:12px;color:var(--muted,#646c76);line-height:1.4}.ds-resource:hover{background:#fffaf6;border-color:#f4b686}.ds-resource:focus-visible{outline:2px solid var(--ink,#24272c);outline-offset:4px}"
+    },
+    {
+      "name": "Gallery arrow", "kind": "button",
+      "description": "Circular previous/next control floating over vehicle photography.",
+      "html": "<button class=\"ds-arrow\" aria-label=\"ภาพถัดไป\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 12h16m-6-6 6 6-6 6\"/></svg></button>",
+      "css": ".ds-arrow{display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;background:rgb(255 255 255 / .95);color:var(--ink,#24272c);box-shadow:0 3px 12px rgb(0 0 0 / .1);cursor:pointer;transition:background .2s,transform .2s var(--ease,cubic-bezier(.16,1,.3,1))}.ds-arrow:hover{background:var(--accent,#ff7a1a);transform:scale(1.06)}.ds-arrow:focus-visible{outline:2px solid var(--ink,#24272c);outline-offset:4px}@media(prefers-reduced-motion:reduce){.ds-arrow{transition:none}}"
+    },
+    {
+      "name": "MQTT node", "kind": "card", "refersTo": "broker-node",
+      "description": "Highlighted broker node in the architecture diagram.",
+      "html": "<div class=\"ds-node\"><strong>MQTT</strong><span>รับ–ส่งข้อความ</span></div>",
+      "css": ".ds-node{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;padding:5px;min-height:45px;border:1px solid var(--accent,#ff7a1a);border-radius:10px;background:var(--accent-soft,#fff2e8);font-family:Anuphan,Tahoma,sans-serif;line-height:1.45;color:var(--ink,#24272c)}.ds-node strong{font-size:13px;font-weight:600}.ds-node span{font-size:12px;color:var(--muted,#646c76)}"
+    },
+    {
+      "name": "Viewer control", "kind": "button",
+      "description": "Compact icon control in the poster toolbar.",
+      "html": "<button class=\"ds-viewer-control\" aria-label=\"ปิดโปสเตอร์\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\"><path d=\"m6 6 12 12M6 18 18 6\"/></svg></button>",
+      "css": ".ds-viewer-control{display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:7px;background:var(--page,#f2f4f6);color:var(--ink,#24272c);cursor:pointer}.ds-viewer-control:hover{background:var(--accent-soft,#fff2e8)}.ds-viewer-control:focus-visible{outline:2px solid var(--ink,#24272c);outline-offset:4px}"
+    }
+  ],
+  "narrative": {
+    "overview": "White cards, cool gray framing, local Thai typography and real vehicle photographs create a compact, practical project overview. Orange marks the brand, selected controls, controller link and MQTT node."
+  }
+}
