@@ -99,6 +99,13 @@
     link.rel = 'noopener noreferrer';
     link.classList.remove('is-pending');
     link.removeAttribute('aria-disabled');
+    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    arrow.classList.add('icon', 'resource-arrow');
+    arrow.setAttribute('aria-hidden', 'true');
+    const arrowIcon = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    arrowIcon.setAttribute('href', '#external');
+    arrow.append(arrowIcon);
+    link.querySelector('.pending-dot')?.replaceWith(arrow);
     $('#video-description').textContent = 'ดูแนวคิดและการทำงานของรถ';
   }
 
