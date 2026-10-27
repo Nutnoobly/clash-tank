@@ -131,7 +131,7 @@ flowchart TD
 - [เว็บไซต์รายงานโครงงาน](https://nutnoobly.github.io/clash-tank/)
 - [หน้าควบคุมรถ](https://clash-tank.vercel.app/)
 - **วิดีโอสาธิต:** รอเพิ่มลิงก์
-- **โปสเตอร์:** รอเพิ่มไฟล์
+- **โปสเตอร์:** [เปิดไฟล์ PDF](docs/assets/clashtank-poster.pdf)
 
 ## คู่มือติดตั้งและรายละเอียดทางเทคนิค
 
