@@ -1,6 +1,6 @@
 // เติมข้อมูลในไฟล์นี้ได้โดยไม่ต้องแก้โครงหน้าเว็บ
 window.CLASHTANK = {
-  videoUrl: '', // ลิงก์วิดีโอ เช่น https://www.youtube.com/watch?v=...
+  videoUrl: 'https://www.youtube.com/watch?v=54JKUor_S_o', // ลิงก์วิดีโอ เช่น https://www.youtube.com/watch?v=...
   posterImage: 'assets/clashtank-poster.jpg', // รูปโปสเตอร์ เช่น assets/poster.jpg — เปิดใน image viewer
   posterFile: 'assets/clashtank-poster.pdf', // ไม่จำเป็น: ไฟล์ดาวน์โหลด เช่น assets/poster.pdf
   members: [
