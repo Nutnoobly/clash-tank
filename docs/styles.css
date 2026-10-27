@@ -54,3 +54,25 @@ dialog{width:min(1100px,94vw);height:min(900px,91dvh);max-width:none;max-height:
 .viewer-actions button,.viewer-actions>a{background:var(--surface-alt)}
 .viewer-actions button:hover,.viewer-actions>a:hover{background:var(--accent-soft)}
 .poster-stage{background:var(--stage)}
+
+/* Intro reading view */
+.intro-card{position:relative}
+.intro-expand{position:absolute;right:13px;top:12px;z-index:1;width:36px;height:36px;display:grid;place-items:center;background:var(--surface-alt,#f2f4f6);color:var(--ink);border-radius:8px}
+.intro-expand:hover{background:var(--accent-soft)}
+.intro-expand .icon{width:20px;height:20px}
+.intro-scroll{padding-top:20px}
+.abstract-content p{text-indent:2em;text-align:start;line-height:2.1;margin-bottom:1.2em}
+.intro-tabs{gap:clamp(2px,1.5vw,22px);padding-inline:8px}
+.intro-tabs button{min-width:0;padding-inline:clamp(8px,1.4vw,16px);white-space:nowrap}
+.intro-reader{width:min(1120px,94vw);height:min(920px,92dvh)}
+.intro-reader>.intro-card{width:100%;height:100%;flex:1;min-height:0;border:0;border-radius:inherit}
+.intro-reader .intro-scroll{margin:36px clamp(24px,5vw,64px) 0;padding:20px 14px 32px 0;overscroll-behavior:contain;scrollbar-gutter:stable}
+.intro-reader .intro-content{max-width:76ch;margin-inline:auto}
+.intro-reader .intro-content h1,.intro-reader .intro-content h2{font-size:clamp(28px,3vw,40px);margin-bottom:24px}
+.intro-reader .intro-content p{font-size:18px;line-height:2.15;margin-bottom:1.3em}
+.intro-reader .feature-list dt{font-size:19px}
+.intro-reader .feature-list dd{font-size:17px;line-height:2}
+.intro-reader .intro-tabs{min-height:64px;gap:32px}
+.intro-reader .intro-tabs button{font-size:16px}
+.intro-reader .intro-expand{right:18px;top:15px;width:40px;height:40px}
+@media(max-width:680px){.intro-reader{width:calc(100vw - 20px);height:92dvh}.intro-reader .intro-scroll{margin:30px 18px 0;padding:20px 8px 24px 0}.intro-reader .intro-content p{font-size:17px;line-height:2}.intro-scroll{padding-top:20px}.intro-tabs,.intro-reader .intro-tabs{gap:0;justify-content:space-evenly}.intro-tabs button,.intro-reader .intro-tabs button{font-size:13px;padding-inline:8px}.intro-expand{right:10px;top:10px}.intro-reader .intro-expand{right:10px;top:10px;width:36px;height:36px}}

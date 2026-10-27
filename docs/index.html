@@ -17,9 +17,9 @@
       document.documentElement.style.colorScheme = theme;
     })();
   </script>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20261027-expanded-card">
   <script src="site-content.js?v=20261027-video" defer></script>
-  <script src="app.js?v=20261027-video-arrow" defer></script>
+  <script src="app.js?v=20261027-expanded-card" defer></script>
 </head>
 <body>
 <a href="#intro-panel" class="skip-link">ข้ามไปเนื้อหา</a>
@@ -36,6 +36,7 @@
   <symbol id="plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
   <symbol id="minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
   <symbol id="fit" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+  <symbol id="collapse" viewBox="0 0 24 24"><path d="M3 8h5V3m8 0v5h5M21 16h-5v5M8 21v-5H3"/></symbol>
   <symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></symbol>
 </defs></svg>
 
@@ -44,8 +45,15 @@
 
   <div class="top-row">
     <section class="card intro-card" aria-label="เกี่ยวกับ ClashTank">
+      <button class="intro-expand" id="expand-intro" type="button" aria-label="ขยายเนื้อหาเพื่ออ่าน" title="ขยายเนื้อหาเพื่ออ่าน" aria-haspopup="dialog" aria-controls="intro-reader"><svg class="icon" aria-hidden="true"><use href="#fit"/></svg></button>
       <div class="intro-scroll" id="intro-panel" tabindex="0">
-        <article id="panel-overview" class="intro-content" role="tabpanel" aria-labelledby="tab-overview">
+        <article id="panel-abstract" class="intro-content abstract-content" role="tabpanel" aria-labelledby="tab-abstract">
+          <h1>บทคัดย่อ</h1>
+          <p>โครงงาน ClashTank มีวัตถุประสงค์เพื่อพัฒนารถต่อสู้ที่สามารถควบคุมด้วยภาษาธรรมชาติและควบคุมโดยตรงผ่านเว็บบนโทรศัพท์มือถือ โดยเชื่อมโยงการประมวลผลภาษากับการทำงานของอุปกรณ์จริง</p>
+          <p>ระบบรับเสียงพูดภาษาไทยหรือภาษาอังกฤษผ่านเบราว์เซอร์แล้วแปลงเป็นข้อความ หรือรับข้อความที่ผู้ใช้พิมพ์ จากนั้นใช้โมเดลภาษาขนาดใหญ่ผ่าน Ollama แปลงข้อความเป็นชุดคำสั่ง และส่งผ่านโปรโตคอล MQTT ไปยัง Arduino UNO R4 WiFi ซึ่งทำหน้าที่ควบคุมมอเตอร์ เซอร์โว กลไกโจมตี และจอแสดงผล แยกจากบอร์ดหลัก ระบบรองรับการสั่งหลายการกระทำในประโยคเดียวให้รถทำงานตามลำดับ รวมถึงการควบคุมทิศทางและสั่งงานผ่านจอยและปุ่มบนเว็บโดยไม่ผ่านโมเดลภาษา นอกจากนี้ยังใช้เซนเซอร์อินฟราเรดตรวจจับวัตถุใกล้เพื่อกระตุ้นเสียงตอบสนอง โดยฟังก์ชันป้องกันเป็นการจำลองด้วยเสียงเท่านั้น</p>
+          <p>ผลการพัฒนาได้ต้นแบบที่ผสานการสั่งงานด้วยเสียง ข้อความ และการควบคุมโดยตรงเข้าด้วยกัน แสดงให้เห็นการประยุกต์ใช้ปัญญาประดิษฐ์ การสื่อสารผ่านเครือข่าย และไมโครคอนโทรลเลอร์</p>
+        </article>
+        <article id="panel-overview" class="intro-content" role="tabpanel" aria-labelledby="tab-overview" hidden>
           <h1>รถต่อสู้ที่เข้าใจ<br><span>คำสั่งของคุณ</span></h1>
           <p>ClashTank เปลี่ยนภาษาธรรมชาติให้เป็นการเคลื่อนไหวของรถ ใช้ LLM แปลงข้อความจากเสียงพูดเป็นคำสั่งที่รถเข้าใจ พร้อมให้คุณควบคุมเองผ่านจอยบนมือถือ</p>
           <p>พูดหลายคำสั่งในครั้งเดียว เช่น “เดินหน้า 2 วินาที แล้วเลี้ยวซ้าย แล้วโจมตี” ระบบจะแปลงเป็นชุดคำสั่งและให้รถทำงานทีละขั้น</p>
@@ -69,7 +77,8 @@
         </article>
       </div>
       <div class="intro-tabs" role="tablist" aria-label="เลือกอ่านข้อมูลโปรเจค">
-        <button id="tab-overview" role="tab" aria-selected="true" aria-controls="panel-overview" tabindex="0">ภาพรวม</button>
+        <button id="tab-abstract" role="tab" aria-selected="true" aria-controls="panel-abstract" tabindex="0">บทคัดย่อ</button>
+        <button id="tab-overview" role="tab" aria-selected="false" aria-controls="panel-overview" tabindex="-1">ภาพรวม</button>
         <button id="tab-concept" role="tab" aria-selected="false" aria-controls="panel-concept" tabindex="-1">แนวคิด</button>
         <button id="tab-features" role="tab" aria-selected="false" aria-controls="panel-features" tabindex="-1">ฟีเจอร์</button>
       </div>
@@ -108,6 +117,7 @@
   <section class="card team-card" aria-labelledby="team-title"><h2 id="team-title">ทีมผู้พัฒนา</h2><div class="team-members" id="team-members"></div></section>
 </main>
 
+<dialog id="intro-reader" class="intro-reader" aria-label="ข้อมูลโครงงาน ClashTank แบบขยาย"></dialog>
 <dialog id="poster-viewer" aria-labelledby="poster-title">
   <div class="viewer-toolbar"><h2 id="poster-title">โปสเตอร์ ClashTank</h2><div class="viewer-actions"><div id="poster-zoom-controls" hidden><button aria-label="ย่อโปสเตอร์" id="poster-zoom-out"><svg class="icon"><use href="#minus"/></svg></button><span id="poster-zoom-label" aria-live="polite">100%</span><button aria-label="ขยายโปสเตอร์" id="poster-zoom-in"><svg class="icon"><use href="#plus"/></svg></button><button aria-label="ปรับโปสเตอร์ให้พอดีหน้าจอ" id="poster-fit"><svg class="icon"><use href="#fit"/></svg></button></div><a id="poster-download" target="_blank" rel="noopener noreferrer" aria-label="เปิดไฟล์โปสเตอร์" hidden><svg class="icon"><use href="#download"/></svg></a><button id="close-poster" aria-label="ปิดโปสเตอร์"><svg class="icon"><use href="#close"/></svg></button></div></div>
   <div id="poster-stage" class="poster-stage"><div class="poster-empty"><svg class="icon"><use href="#poster"/></svg><h3>กำลังเตรียมโปสเตอร์</h3><p>โปสเตอร์ของโปรเจคจะแสดงที่นี่เมื่อเพิ่มไฟล์แล้ว</p></div></div>

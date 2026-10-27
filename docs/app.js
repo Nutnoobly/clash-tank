@@ -53,6 +53,41 @@
     window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   });
 
+  const introReader = $('#intro-reader');
+  const introCard = $('.intro-card');
+  const expandIntro = $('#expand-intro');
+  const introPlaceholder = document.createElement('div');
+  introPlaceholder.hidden = true;
+  introPlaceholder.setAttribute('aria-hidden', 'true');
+  introCard.before(introPlaceholder);
+  expandIntro.setAttribute('aria-expanded', 'false');
+  expandIntro.addEventListener('click', () => {
+    if (introReader.open) {
+      introReader.close();
+      return;
+    }
+    introPlaceholder.hidden = false;
+    introReader.append(introCard);
+    introReader.showModal();
+    expandIntro.setAttribute('aria-expanded', 'true');
+    expandIntro.setAttribute('aria-label', 'ย่อเนื้อหากลับ');
+    expandIntro.title = 'ย่อเนื้อหากลับ';
+    expandIntro.querySelector('use').setAttribute('href', '#collapse');
+  });
+  introReader.addEventListener('click', event => {
+    if (event.target !== introReader) return;
+    const rect = introReader.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) introReader.close();
+  });
+  introReader.addEventListener('close', () => {
+    introPlaceholder.after(introCard);
+    introPlaceholder.hidden = true;
+    expandIntro.setAttribute('aria-expanded', 'false');
+    expandIntro.setAttribute('aria-label', 'ขยายเนื้อหาเพื่ออ่าน');
+    expandIntro.title = 'ขยายเนื้อหาเพื่ออ่าน';
+    expandIntro.querySelector('use').setAttribute('href', '#fit');
+    expandIntro.focus();
+  });
   const slides = [
     { src: 'assets/tank-side.webp', alt: 'ClashTank มุมด้านข้าง แสดงล้อ บอร์ดควบคุมและอุปกรณ์บนรถ' },
     { src: 'assets/tank-top.webp', alt: 'ClashTank มุมบน แสดง Arduino, ESP32 และการเชื่อมต่ออุปกรณ์' },

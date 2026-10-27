@@ -82,10 +82,12 @@ Cards use the card radius. Resource rows and diagram nodes use their own radii. 
 
 A 42px circular theme button sits at the upper right without shifting the centered logo. Moon opens dark mode; sun returns to light. It has an accessible action label and pressed state. The saved preference takes precedence over system theme; changing system theme only applies before an explicit selection.
 - **Brand navigation:** centered wordmark; clicking returns to the overview tab and page top. A focusable skip link targets the intro.
-- **Intro tabs:** three bottom tabs (ภาพรวม / แนวคิด / ฟีเจอร์), muted by default, orange with a (3px) underline when selected. Click, Left/Right, Home and End select panels; switching resets intro scroll and preserves one keyboard tab stop.
+- **Intro tabs:** four bottom tabs (บทคัดย่อ / ภาพรวม / แนวคิด / ฟีเจอร์), muted by default, orange with a (3px) underline when selected. Click, Left/Right, Home and End select panels; switching resets intro scroll and preserves one keyboard tab stop.
 - **Gallery:** four real photos with cover cropping, previous/next arrows and four dot buttons. Arrows wrap; Left/Right keys work within the gallery. Selected dots expose pressed state, and image changes update a polite status message.
 - **Architecture:** readable HTML node labels over SVG connectors; the central MQTT node uses accent-soft and an orange border.
 - **Resource rows:** icon, title, supporting label and trailing action indicator. Available rows warm on hover; the controller icon and arrow use orange. Pending video has a disabled link state and neutral dot. Poster opens the viewer.
 - **Members:** five slots with portraits or neutral person placeholders and supporting labels; mobile slots retain a fixed width (108px).
 - **Poster viewer:** native modal with Close, Escape and outside-click dismissal; focus returns to its trigger. An image fits initially and on resize, with zoom from (50–300%) in (25%) steps and a fit control. A supplied file can render in an iframe; the original opens separately. Missing content shows the pending state; failed images show an error.
 - **Motion:** short state transitions (200–250ms); arrow scaling and dot expansion use the shared easing. Reduced-motion preference removes transitions and smooth scrolling.
+
+The abstract is selected initially and uses three indented paragraphs with natural left alignment. A top-right expand icon moves the original intro card into a large native dialog, preserving its heading, all four bottom tabs, selected-tab state, and scrollable content. The same icon collapses it back; Escape and backdrop dismissal also restore the card and focus. Expanded reading text is 17–18px.
